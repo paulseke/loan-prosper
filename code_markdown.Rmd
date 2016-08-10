@@ -1,0 +1,1905 @@
+# **LOAN DATA FROM PROSPER** by *Paul F. Seke*  
+   
+=======================================================================================================================
+   
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+## Loading packages 
+library(ggplot2)  # allow data plotting
+library(tidyr)  # to improve munging and calculus
+library(dplyr)  # split dataframes and calculus
+library(gridExtra)  # additional operations on plots
+library(reshape2)  # reshape dataframes
+library(RColorBrewer)  # improve graphs quality
+library(scales)  # scaling operations on axes
+library(alr3)  # for correlations 
+```
+
+```{r echo=FALSE, include=FALSE}
+## Loading the Data
+ld.original <- read.csv('prosperLoanData.csv') 
+## Checking the data available
+str(ld.original) # List and types of variables
+```
+
+```{r echo=FALSE, include=FALSE}
+# Selecting variables of use in the working dataframe
+# The heavy (81 columns) original dataframe is used only as source of variables
+
+ld <- ld.original[, 5:6] # starting the dataframe with 2 parameters of interest
+ld$TotalInquiries <- ld.original$TotalInquiries
+ld$InquiriesLast6Months <- ld.original$InquiriesLast6Months
+ld$MemberKey <- ld.original$MemberKey
+ld$ListingCategory <- ld.original$ListingCategory
+ld$EmploymentStatusDuration <- ld.original$EmploymentStatusDuration
+ld$ProsperScore <- ld.original$ProsperScore
+ld$StatedMonthlyIncome <- ld.original$StatedMonthlyIncome
+ld$LoanOriginalAmount <- ld.original$LoanOriginalAmount
+ld$ScorexChangeAtTimeOfListing <- ld.original$ScorexChangeAtTimeOfListing
+ld$LenderYield <- ld.original$LenderYield
+ld$IsBorrowerHomeowner <-ld.original$IsBorrowerHomeowner
+ld$IncomeVerifiable <- ld.original$IncomeVerifiable
+ld$LoanCurrentDaysDelinquent <- ld.original$LoanCurrentDaysDelinquent
+ld$PercentFunded <- ld.original$PercentFunded
+ld$IncomeRange <- ld.original$IncomeRange
+ld$CreditScoreRangeLower <- ld.original$CreditScoreRangeLower
+ld$CreditScoreRangeUpper <- ld.original$CreditScoreRangeUpper
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, new_variables_added}
+# Creating new variables
+
+# Adding a column with home owner values 0 (no) and 1 (yes)
+
+ld$HouseOwned <- c(1:length(ld$IsBorrowerHomeowner))
+
+for(i in 1:length(ld$IsBorrowerHomeowner)) 
+{
+  if (ld$IsBorrowerHomeowner[i] == 'True') 
+      {
+    ld$HouseOwned[i] = 1
+    } 
+  else if (ld$IsBorrowerHomeowner[i] == 'False')
+    {
+    ld$HouseOwned[i] = 0
+  }
+}
+
+# Adding a column with Income Verifiable value 0 or 1
+
+ld$IncomeVerifiableInt <- c(1:length(ld$IncomeVerifiable))
+
+for(i in 1:length(ld$IncomeVerifiable)) 
+{ 
+  if (ld$IncomeVerifiable[i] == 'True') 
+      {
+    ld$IncomeVerifiableInt[i] = 1
+    } 
+  else if (ld$IncomeVerifiable[i] == 'False')
+    {
+    ld$IncomeVerifiableInt[i] = 0
+  }
+}
+
+# Alternative listing category with only 7 values (instead of 20)
+
+ld$AlternativeListingCategory <- ld$ListingCategory 
+ld$AlternListingString <- ld$ListingCategory 
+
+for(i in 1:length(ld$InquiriesLast6Months)) 
+{
+  if (ld$ListingCategory[i] == 1| 
+      ld$ListingCategory[i] == 3  | 
+      ld$ListingCategory[i] == 12 | 
+      ld$ListingCategory[i] == 18) 
+    {
+    ld$AlternativeListingCategory[i] = 1
+    ld$AlternListingString[i] = 'business'
+  }
+  else if (ld$ListingCategory[i] == 4| 
+           ld$ListingCategory[i] == 5 |
+           ld$ListingCategory[i] == 6 | 
+           ld$ListingCategory[i] == 9 | 
+           ld$ListingCategory[i] == 16 | 
+           ld$ListingCategory[i] == 17 | 
+           ld$ListingCategory[i] == 19) 
+    {
+    ld$AlternativeListingCategory[i] = 2
+    ld$AlternListingString[i] = 'personal'
+  }
+  else if (ld$ListingCategory[i] == 2 | 
+           ld$ListingCategory[i] == 8 | 
+           ld$ListingCategory[i] == 11 | 
+           ld$ListingCategory[i] == 13 | 
+           ld$ListingCategory[i] == 14 | 
+           ld$ListingCategory[i] == 20) 
+{
+    ld$AlternativeListingCategory[i] = 3
+    ld$AlternListingString[i] = 'family'
+  } 
+  else if (ld$ListingCategory[i] == 15 | 
+           ld$ListingCategory[i] == 10)
+    {ld$AlternativeListingCategory[i] = 4
+    ld$AlternListingString[i] = 'medical'
+  }
+  else 
+    {
+    ld$AlternativeListingCategory[i] = 0
+    ld$AlternListingString[i] = 'missing'
+  }
+}
+
+
+# Adding a column with DelinquencyDays factors 1-30 or 31-90 and 91+
+ld$DelinquencyDays <- c(1:length(ld$LoanStatus))
+for(i in 1:length(ld$LoanStatus)) 
+{ 
+  if (ld$LoanStatus[i] == 'Past Due (1-15 days)' | 
+      ld$LoanStatus[i] == 'Past Due (16-30 days)' | 
+      ld$LoanStatus[i] == 'Past Due (31-60 days)' | 
+      ld$LoanStatus[i] == 'Past Due (61-90 days)' |
+      ld$LoanStatus[i] == 'Past Due (91-120 days)' | 
+      ld$LoanStatus[i] == 'Past Due (>120 days)')
+      {
+    ld$DelinquencyDays [i] = 1
+    } 
+  else 
+  {
+    ld$DelinquencyDays [i] = 0
+  }
+}
+
+```
+
+***
+   
+## 1. Background, study objectives, and variables   
+   
+### **1.1. Background**   
+[Peer-to-peer (P2P) lending companies](https://en.wikipedia.org/wiki/Peer-to-peer_lending) were created to serve the community, by allowing people to lend money to others without the very high expenses, the cumbersome procedure and, allegdly, the tough requirements, high interest rates, and other complex mechanisms used by traditional financial institutions such as [banks](http://www.investopedia.com/articles/investing/080713/how-banks-set-interest-rates-your-loans.asp). We will analyze a [dataset](https://docs.google.com/spreadsheets/d/1gDyi_L4UvIrLTEC6Wri5nbaMmkGmLQBk-Yx3z0XDEtI/edit#gid=0) containing financial and personal information of people granted loans by the P2P lending company [Prosper Marketplace, Inc.](https://www.prosper.com/landing). The information was mainly retrieved from the credit profile forms, but information on previous loans and risk score is also available. In addition, the lender yield on the loan, i.e. the net interest margin of a given investor on a given loan is also available.  
+   
+### **1.2. Study objectives**   
+The main objective of the present study is to assess how the number of borrowers (people granted a loan) correlates with Prosper [risk score](http://www.investopedia.com/terms/b/bad-credit.asp#articles), and criteria considered by [traditional financial institutions](http://www.investopedia.com/articles/investing/080713/how-banks-set-interest-rates-your-loans.asp) such as borower employment status duration, monthly income, evidence of stated income, and home ownership. We will also explore the impact of [delinquency](http://www.bankrate.com/finance/loans/rising-interest-rates-impact-p2p-lending.aspx) on the lender yield.   
+   
+   
+### **1.3. Variables considered of interest:**   
+   
+* Inquiries' number ("TotalInquiries" and "InquiriesLast6Months")  
+* the borrower's employment status duration and income ("StatedMonthlyIncome" and "EmploymentStatusDuration")   
+* the risk score and its variations compared to eventual prior loans, when applicable ("ProsperScore" and "ScorexChangeAtTimeOfListing")   
+* the number of days delinquent ("LoanCurrentDaysDelinquent")   
+* the lender yield on the loan ("LenderYield")   
+* the loan term, amount filled for, and the percentage funded ("Term", "LoanOriginalAmount", and "PercentFunded")   
+* the category of the listing that the borrower selected when posting their listing ("ListingCategory", categorical)   
+* the income range of the borrower at the time the listing was created ("IncomeRange", categorical)  
+* wether the borrower had the required documentation to support their income ("IncomeVerifiable", boolean)   
+* the employment status of the borrower at the time they posted the listing ("EmploymentStatus", categorical)   
+* the debt to income ratio of the borrower at the time the credit profile was pulled ("DebtToIncomeRatio", continuous)   
+* the current status of the loan ("LoanStatus", categorical)    
+* whether the borrower is home owner ("IsBorrowerHomeowner", boolean), i.e. whether the borrowers have a mortgage on their credit profile or provide documentation confirming they are a home owner.   
+* and the date the credit profile was pulled ("DateCreditPulled", factor).   
+    
+***
+
+# Univariate Plots Section 1
+
+## 2. Number of previous inquiries   
+   
+### **2.1. Distributions of total and last 6 months inquiries**   
+Let's explore the total number of inquiries at the time the credit profile was pulled and the number of inquiries in the past six months (from the time the credit profile was pulled).  
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, total_inquiries1}
+#### Total Inquiries ##### 
+ld.provisory <- subset(ld, !is.na(TotalInquiries)) 
+# Removing NA values
+ld.provisory <- arrange(ld.provisory, TotalInquiries) 
+## Putting values in order
+
+## histogram
+p1 = ggplot(aes(TotalInquiries), data = ld.provisory) +
+  geom_histogram(binwidth = 2, colour = "yellow", fill="blue") +
+  xlim(0, quantile(ld.provisory$TotalInquiries, 0.99))
+
+## line graph
+ld.provisory2 <- subset(ld, !is.na(TotalInquiries))
+ld.provisory2 <- subset(ld, !is.na(InquiriesLast6Months))
+# Removing NA values
+ld.provisory2 <- arrange(ld.provisory2, InquiriesLast6Months) 
+
+p2 = ggplot(aes(x = c(1:length(ld.provisory2$MemberKey)), 
+                y = InquiriesLast6Months), data = ld.provisory2) +
+  geom_line(colour = "green") +
+  ylim(0, quantile(ld.provisory2$InquiriesLast6Months, 0.99)) +
+  xlab("Increasing order") 
+
+## Proportions 
+# sum(ld.provisory2$InquiriesLast6Months == 0) / length(ld.provisory2$MemberKey) 
+# sum(ld.provisory2$InquiriesLast6Months >= 1 &
+#       ld.provisory2$InquiriesLast6Months < 4) /
+#   length(ld.provisory2$MemberKey)
+# sum(ld.provisory2$InquiriesLast6Months > 4) / length(ld.provisory2$MemberKey)
+
+grid.arrange(p1, p2, ncol = 2)
+
+```
+   
+**Histogram of total inquiries' distribution.**  The histogram revealed a long tail distribution of discrete variables, where 7.47% of borrowers filled a credit profile at Prosper for the first time, 48.55% for the 2nd to the 5th time, 28.68% for the 6th to the 10th, and 15.29% for more than the 10th time. This graph also revealed that a few people filled credit profiles for more than 30 times, suggesting that this may be for business.  
+    
+**Line graph of ordered numbers of last 6 months inquiries.**  In the last 6 months, 47.95% filled a credit profile once (null number of previous inquiry),  44.82% from 2 to 5 times, and 7.23% for more than 5 times. 
+
+   
+# Bivariate Plots Section 1 
+   
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, total_inquiries2}
+#### Total Inquiries ##### 
+ld.provisory <- subset(ld, !is.na(TotalInquiries)) 
+# Removing NA values
+ld.provisory <- arrange(ld.provisory, TotalInquiries) 
+## Putting values in order
+
+## Scatter plot of InquiriesLast6Months vs. TotalInquiries
+ld.provisory <- subset(ld.provisory, !is.na(InquiriesLast6Months)) 
+
+p1 = ggplot(aes(TotalInquiries, InquiriesLast6Months), 
+            data = ld.provisory) +
+  geom_point(alpha = 0.4, color = 'grey') +
+  xlim(0, quantile(ld.provisory$TotalInquiries, 0.999)) +
+  ylim(0, 40) +
+  geom_smooth(color = 'black') +
+  theme(panel.background = element_rect(fill = "white")) #+ 
+#    coord_trans(x = "sqrt", y = "sqrt") 
+
+# cor.test(ld.provisory$InquiriesLast6Months, 
+#                   ld.provisory$TotalInquiries) # 0.7419499 
+
+
+## Box plots of InquiriesLast6Months vs. TotalInquiries 
+#by number of total inquiries range
+# 0 to 20
+ld.provisory3 <- subset(ld, !is.na(InquiriesLast6Months))   
+ld.provisory3 <- subset(ld.provisory3, !is.na(TotalInquiries))
+ld.provisory3 <- subset(ld.provisory3, TotalInquiries >= 0 & 
+                          TotalInquiries < 20 )
+ld.provisory3$TotalInquiries <- as.factor(
+  ld.provisory3$TotalInquiries) 
+
+p2 = ggplot(aes(TotalInquiries, InquiriesLast6Months), 
+            data = ld.provisory3) +
+  geom_boxplot() +
+  ylim(0, 15) 
+
+grid.arrange(p1, p2, ncol = 2)
+
+ 
+```
+   
+**Scatter plot of last 6 months to total inquiries.**  A strong positive correlation was observed between these two factors (r = 0.74), suggesting that people asking for loans many times in the last 6 months also asked many time in the previous years, further suggesting that these loans were for business purpose and not personal/family needs.   
+   
+**Boxplot graphs of last 6 months to total inquiries.** People who filled credit profile forms from 1 to 2 times in the last 6 months tended to have a total number inquiries lower or equal to 7 (probably for personal/family needs). On the other hand, those who filled between 2 and 5 times in the last 6 months had a total inquiry number between about 8 and 23 (possibly small businesses), while those filling between 5 and 15 times had a total inquiry between 24 and 59 (possibly, long term clients of Prosper and larger businesses).    
+   
+**Emerging research questions:** For which purposes people were filling credit profiles (filling category)? What is the distribution of the specific years in which the number of inquiries in the last 6 months were determined?   
+  
+***
+    
+### **2.2. Filling category of borrowers**   
+Each borrower selected one of the following categories when posting their listing: 0 - Not Available, 1 - [Debt consolidation](https://en.wikipedia.org/wiki/Debt_consolidation), 2 - Home Improvement, 3 - Business, 4 - Personal Loan, 5 - Student Use, 6 - Auto, 7- Other, 8 - Baby&Adoption, 9 - Boat, 10 - Cosmetic Procedure, 11 - Engagement Ring, 12 - Green Loans, 13 - Household Expenses, 14 - Large Purchases, 15 - Medical/Dental, 16 - Motorcycle, 17 - RV, 18 - Taxes, 19 - Vacation, and 20 - Wedding Loans.  
+   
+These categories were re-arranged in a new variable ("AlternativeListingCategory") with only 5 levels based on data information availability, socio--economic considerations, and purpose:    
+- category 0, when no information was available, that is for previous categories 0 - Not Available and 7- Other   
+- category 1, termed as *business and taxes*, including previous categories 1. Debt Consolidation, 3 - Business,  12 - Green Loans, and 18 - Taxes   
+- category 2, termed as *personal loans and vehicles*, including 4 - Personal Loan, 5 - Student Use, 6 - Auto, 9 - Boat, 16 - Motorcycle, and 17 - RV    
+- category 3, termed as *family consolidation and household expenses*, including 2 - Home Improvement, 8 - Baby&Adoption, 11 - Engagement Ring, 13 - Household Expenses, 14 - Large Purchases, 19 - Vacation, and 20 - Wedding Loans   
+- and finally, category 4 termed as *medical intervention*, including 15 - Medical/Dental and 10 - Cosmetic Procedure.  
+    
+   
+# Multivariate Plots Section 1 
+   
+
+#### **2.2.1. Distribution of number of inquiries per listing category**   
+
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, Months6_Alt_listing}
+
+## bar graph: InquiriesLast6Months faceted according to AlternativeListingCategory
+ld.provisory <- subset(ld, !is.na(InquiriesLast6Months))
+ld.provisory <- subset(ld.provisory, InquiriesLast6Months <= 25)
+ld.provisory <- subset(ld.provisory, !is.na(TotalInquiries))
+ld.provisory <- subset(ld.provisory, TotalInquiries <= 50)
+ld.provisory <- subset(ld.provisory, !is.na(AlternListingString))
+ld.provisory <- subset(ld.provisory, AlternListingString != 'missing')
+
+p1 = ggplot(aes(InquiriesLast6Months), 
+            data = subset(ld.provisory, 
+                          !is.na(AlternListingString))) +
+  geom_histogram(binwidth = 1, colour = "white", fill="blue") +
+  facet_wrap(~AlternListingString, ncol =5, scales="free") +
+  xlim(0, 15) +
+  xlab("Inquiries last 6 months")  +
+  ggtitle("Inquiries faceted by listing categories") 
+
+p2 = ggplot(aes(TotalInquiries), 
+            data = subset(ld.provisory, 
+                          !is.na(AlternListingString))) +
+  geom_histogram(binwidth = 2,colour = "white", fill="red") +
+  facet_wrap(~AlternListingString, ncol =5, scales="free") + 
+  xlim(0, 25)  +
+  ggtitle("")  +
+  xlab("Total inquiries") 
+
+grid.arrange(p1, p2, ncol = 1)
+
+# Proportions  by AlternativeListingCategory
+# TotalInquiries
+#a <- by(ld.provisory$TotalInquiries, 
+#        ld.provisory$AlternativeListingCategory, sum)
+#a <- c(sum(a[1]), sum(a[2]), sum(a[3]), sum(a[4]), sum(a[5]))
+#sum(a[1])/sum(a) # 0.3298992  proportion data without information 
+
+# InquiriesLast6Months
+#a <- by(ld.provisory$InquiriesLast6Months, ld.provisory$AlternativeListingCategory, sum)
+#a <- c(sum(a[1]), sum(a[2]), sum(a[3]), sum(a[4]), sum(a[5]))
+#sum(a[1])/sum(a) # 0.3958649
+
+```
+   
+**Main observations and comments.** Histograms of inquiries faceted by alternative listing category revealed a long tail distribution in all cases. As expected Last 6 months and total inquiries showed the same tendencies. Overall, no information on the listing category was available in 33% of cases for total inquiries (respectively, 39.59% for last 6 months inquiries) (category 0). The proportion of listing categories was determined for the remaing data, and plotted.   
+   
+*** 
+    
+#### **2.2.2. Proportion of inquiries per listing category**   
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, function_lgCategProp}
+
+# Function calculating proportions of data in bins
+
+# parameter definition
+# vect_data e.g. ld.provisory$InquiriesLast6Months # data
+# categ_data e.g. ld.provisory$AlternativeListing # categorical variable
+# categ # values of categorical variable (1:4 at this time)
+# valueMinVect # minimal value to consider
+# valueMaxVect # maximal value to consider
+
+ld.categ.proportion <- function(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)
+{
+  v = c(1:4)
+  v[1] <- sum(
+  categ_data == categ & vect_data == valueMinVect 
+  ) / sum(
+  categ_data == categ & vect_data >= valueMinVect & 
+    vect_data < valueMaxVect 
+  )
+  v[2] <- sum(
+  categ_data == categ & vect_data > valueMinVect & 
+    vect_data < floor(valueMaxVect/5) 
+  ) / sum(
+  categ_data == categ & vect_data >= valueMinVect & 
+    vect_data < valueMaxVect 
+  )
+  v[3] <- sum(
+  categ_data == categ & vect_data >= floor(valueMaxVect/5) & 
+    vect_data < 2*floor(valueMaxVect/5) 
+  ) / sum(
+  categ_data == categ & vect_data >= valueMinVect & 
+    vect_data < valueMaxVect 
+  )
+  v[4] <- sum(
+  categ_data == categ & vect_data >= 2*floor(valueMaxVect/5) & 
+    vect_data < valueMaxVect 
+  ) / sum(
+  categ_data == categ & vect_data >= valueMinVect & 
+    vect_data < valueMaxVect 
+  )
+ return(v)
+}
+
+```
+   
+
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, total_faceT_inquiries}
+ld.provisory <- subset(ld, !is.na(InquiriesLast6Months))
+ld.provisory <- subset(ld.provisory, 
+                       !is.na(AlternativeListingCategory))
+ld.provisory <- subset(ld.provisory, !is.na(TotalInquiries))
+
+# InquiriesLast6Months per AlternativeListingCategory
+
+vect_data = ld.provisory$InquiriesLast6Months # data
+categ_data = ld.provisory$AlternativeListingCategory # categorical variable
+valueMinVect = 0 # minimal value to consider
+valueMaxVect = 15 # maximal value to consider
+
+categ = 1 # values of categorical variable (1:4 at this time)
+business = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)
+ 
+categ = 2 # values of categorical variable (1:4 at this time)
+personal = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data) 
+
+categ = 3 # values of categorical variable (1:4 at this time)
+family = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)  
+
+categ = 4 # values of categorical variable (1:4 at this time)
+medical = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)
+
+months6.Inquiries <- data.frame(business, personal, 
+           family, medical)
+
+
+# TotalInquiries per AlternativeListingCategory
+
+vect_data = ld.provisory$TotalInquiries # data
+categ_data = ld.provisory$AlternativeListingCategory # categorical variable
+valueMinVect = 0 # minimal value to consider
+valueMaxVect = 30 # maximal value to consider
+
+categ = 1 # values of categorical variable (1:4 at this time)
+business2 = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)
+ 
+categ = 2 # values of categorical variable (1:4 at this time)
+personal2 = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data) 
+
+categ = 3 # values of categorical variable (1:4 at this time)
+family2 = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)  
+
+categ = 4 # values of categorical variable (1:4 at this time)
+medical2 = ld.categ.proportion(categ, valueMinVect, 
+                                valueMaxVect, vect_data, categ_data)
+
+total.Inquiries <- data.frame(business2, personal2, 
+           family2, medical2)
+
+
+
+# Grouped Bar Plot - months6.Inquiries
+p1 = ggplot(aes(y= months6.Inquiries$business,
+                x = factor(c(1:length(months6.Inquiries$business)))), 
+            data = months6.Inquiries) +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4))) + 
+  xlab("[1][2-3][4-6][6-15]") +
+  ylab("Proportion") +
+  ggtitle("6mths ->Bness") + 
+  scale_fill_gradientn(colours=rainbow(6), guide = FALSE) +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+p2 = ggplot(aes(y= months6.Inquiries$personal,x = factor(c(1:4))), 
+            data = months6.Inquiries) +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-3][4-6][6-15]") +
+  ylab("Proportion") +
+  ggtitle("--- Personal") + 
+  scale_fill_gradientn(colours=rainbow(6), guide = FALSE)  +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())  
+
+p3 = ggplot(aes(y= months6.Inquiries$family,
+                x = factor(c(1:length(months6.Inquiries$business)))), 
+            data = months6.Inquiries) +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-3][4-6][6-15]") +
+  ylab("Proportion") +
+  ggtitle("--- Family") + 
+  scale_fill_gradientn(colours=rainbow(6), guide = FALSE)  +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+p4 = ggplot(aes(y= months6.Inquiries$medical,
+                x = factor(c(1:length(months6.Inquiries$business)))), 
+            data = months6.Inquiries)  +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-3][4-6][6-15]") +
+  ylab("Proportion") +
+  ggtitle("--- Medical") + 
+  scale_fill_gradientn(colours=rainbow(6), guide = FALSE)  +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+# Grouped Bar Plot - total.inquiries
+iS = total.Inquiries # variable to plot
+p5 = ggplot(aes(y= iS$business2,x = factor(c(1:length(iS$business)))),
+            data = iS) +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-5][6-11][12-30]") +
+  ylab("Proportion") +
+  ggtitle("Total ->Bness") + 
+  scale_fill_gradientn(colours=rainbow(2), guide = FALSE) +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) 
+
+p6 = ggplot(aes(y= iS$personal2,x = factor(c(1:length(iS$business)))),
+            data = iS)+
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-5][6-11][12-30]") +
+  ylab("Proportion") +
+  ggtitle("--- Personal") + 
+  scale_fill_gradientn(colours=rainbow(2), guide = FALSE)   +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+p7 = ggplot(aes(y= iS$family2,x = factor(c(1:length(iS$business)))),
+            data = iS) +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-5][6-11][12-30]") +
+  ylab("Proportion") +
+  ggtitle("--- Family") + 
+  scale_fill_gradientn(colours=rainbow(2), guide = FALSE)  +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) 
+
+p8 = ggplot(aes(y= iS$medical2,x = factor(c(1:length(iS$business)))),
+            data = iS) +
+  geom_bar(stat = 'identity', color = "white", aes(fill = c(1:4)))+ 
+  xlab("[1][2-5][6-11][12-30]") +
+  ylab("Proportion") +
+  ggtitle("--- Medical") + 
+  scale_fill_gradientn(colours=rainbow(2), guide = FALSE)  +
+  ylim(0, 0.67) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4)
+
+```
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+
+# Proportions  by AlternativeListingCategory
+# TotalInquiries
+a <- by(ld.provisory$TotalInquiries, 
+        ld.provisory$AlternativeListingCategory, sum)
+a <- c(sum(a[1]), sum(a[2]), sum(a[3]), sum(a[4]), sum(a[5]))
+totalInqCatgory <- a[2:5]  # 306540  40424  57975   6915 
+# total per category
+rm(a)
+# InquiriesLast6Months
+b <- by(ld.provisory$InquiriesLast6Months, ld.provisory$AlternativeListingCategory, sum)
+b <- c(sum(b[1]), sum(b[2]), sum(b[3]), sum(b[4]), sum(b[5]))
+mths6InqCatgory <- b[2:5]  # 66903 10593 14873  1748
+rm(b)
+
+# proportions comparison
+# business
+n = 2 # Index of category
+binValueTotal <- floor(totalInqCatgory[n] * 
+                         total.Inquiries$business2)
+binValue6Mths <- floor(mths6InqCatgory[n] * 
+                         months6.Inquiries$business)
+# ceiling vs. floor, latter better
+ct = 4 # Category to test: 1 - 4
+prop.test(x = c(binValueTotal[ct], binValue6Mths[ct]),
+          n = c(totalInqCatgory[n], mths6InqCatgory[n]))
+# 0.0828963 0.5060889, p-value < 2.2e-16
+# 0.6231199 0.3766638, p-value < 2.2e-16
+# 0.23476153 0.0975172, p-value < 2.2e-16
+# 0.05917277 0.01954121 p-value < 2.2e-16
+
+# personal p-value < 2.2e-16 / < 2.2e-16 
+# / p-value < 2.2e-16 / p-value < 2.2e-16
+n = 3 # Index of category
+binValueTotal <- floor(totalInqCatgory[n] * 
+                         total.Inquiries$personal2)
+binValue6Mths <- floor(mths6InqCatgory[n] * 
+                         months6.Inquiries$personal)
+ct = 4 # Category to test: 1 - 4
+prop.test(x = c(binValueTotal[ct], binValue6Mths[ct]),
+          n = c(totalInqCatgory[n], mths6InqCatgory[n]))
+# 0.06918499 0.40523096, p-value < 2.2e-16 
+# 0.5691764 0.3938008, p-value < 2.2e-16 
+# 0.2450194 0.1499361, p-value < 2.2e-16 
+# 0.1165847 0.0508976, p-value < 2.2e-16 
+
+# family
+n = 4 # Index of category
+binValueTotal <- floor(totalInqCatgory[n] * 
+                         total.Inquiries$family2)
+binValue6Mths <- floor(mths6InqCatgory[n] * 
+                         months6.Inquiries$family)
+ct = 4 # Category to test: 1 - 4
+prop.test(x = c(binValueTotal[ct], binValue6Mths[ct]),
+          n = c(totalInqCatgory[n], mths6InqCatgory[n]))
+# 0.06666667 0.41590389, p-value < 2.2e-16 
+# 0.5956616 0.4113272, p-value < 2.2e-16 
+# 0.2621837 0.1424485, p-value < 2.2e-16
+# 0.2621837 0.1424485, p-value < 2.2e-16
+
+# medical
+n = 1 # Index of category
+binValueTotal <- floor(totalInqCatgory[n] * 
+                         total.Inquiries$medical2)
+binValue6Mths <- floor(mths6InqCatgory[n] * 
+                         months6.Inquiries$medical)
+ct = 4 # Category to test: 1 - 4
+prop.test(x = c(binValueTotal[ct], binValue6Mths[ct]),
+          n = c(totalInqCatgory[n], mths6InqCatgory[n]))
+# 0.07328897 0.44878406, p-value < 2.2e-16
+# 0.6503099 0.4189797, p-value < 2.2e-16
+# 0.2291903 0.1173042, p-value < 2.2e-16
+# 0.04720428 0.01488722 , p-value < 2.2e-16
+
+```
+   
+**Bar graphs of proportions per listing category.** The listing categories had the following percentages per category for total inquiries (respectively, last 6 months): 
+* for business and taxes (category 1):  8.29% (vs. 50.62%) filling once, then 62.31% (vs. 37.67%) filling up to the 5th of the maximal number of inquiries, then 23.48% (vs. 9.75%) filling up to the 2/3 of the maximal number of inquiries, and finally 5.92% (vs. 1.96%) beyond 2/3 of the maximal number of inquiries;
+* for personal loans and vehicles (category 2): 6.91% (vs. 40.53%) filling once, then 56.92% (vs. 39.38%), 24.5% (vs. 15%), and 11.66% (vs. 5.09%);
+* for family consolidation and household expenses (category 3): 6.68% (vs. 41.64%) filling once, then 59.58% (vs. 41.14%), 26.23% (vs. 14.26%), and 7.52% (vs. 2.95%);
+* for medical interventions (category 4): 7.33% (vs. 44.88%) filling once, then 65.03% (vs. 41.9%), 22.92% (vs. 11.73%), and 4.72% (vs. 14.9%).    
+[Chi-squared test](www.r-tutor.com/elementary-statistics/inference-about-two-populations/comparison-two-population-proportions) (sample test for equality of proportions with continuity correction) revealed a p value < 0.001 in all cases.   
+   
+**Comments.** Although borrowers filling up from the 2/3 of the total to the maximal number of inquiries were less numerous in both distributions (6 or more vs. 4 or more times), the statistical populations of total inquiries and inquiries last 6 months were significantly different for all categories. Notably, the proportion of borrowers inquiring loans only once was very low in total inquiries (many years) while it was very high in a period of 6 months. Similar, the proportion of people filling for up to the 5th of the total amount (2 to 6 vs. 2 or 3 times) was the highest in term of total inquiry, but only the second more common in the last 6 months' inquiry distribution. Considering that these tendencies were observed all over the categories (with only slight differences), we hypothesize that the borrowers of Prosper tend to keep on borrowing money, while the number of new borrowers is very high. Therefore, the service provided by Prosper would satisfy the customers (explaining their loyalty) and attract new ones.    
+   
+**Disambiguation.** Considering that our objective requiries focusing on individuals and families, in the further steps of the study we will exclude people who applied for business and focus on people requiring loans for personal, familial or medical reasons. Unfortunately, the available data does not provide information on whether people who filled credit profile forms before were funded or not. We will assume that people who applied for loans numerous times in a period of 6 months for individual or familial reasons could be people not funded at first attempts and who are in desperate need for a loan.   
+    
+**Emerging research question.** What do people who were funded at first attempt (respectively, those who filled the form many times in the last 6 months) had in common?   
+    
+***
+   
+  
+## 3. Inquiries, income, home ownership and employment status duration   
+   
+### **3.1. Home ownership**    
+   
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, HomeOwn_Home_Risk}
+
+#rm(p1, p2, p3, p4, p5, p6, p7, p8)
+#rm(business2, business, personal2, personal, medical2, medical, family2, family)
+#rm(vect_data, valueMaxVect, valueMinVect, iS, categ_data, categ)
+#rm(n, totalInqCatgory, total.Inquiries, mths6InqCatgory, months6.Inquiries)
+#rm(ct, c, binValue6Mths, binValueTotal)
+
+# Setting the provisory dataframe
+ld.provisory <- subset(ld, !is.na(InquiriesLast6Months))
+ld.provisory <- subset(ld.provisory, 
+                       !is.na(EmploymentStatusDuration))
+ld.provisory <- subset(ld.provisory, 
+                       !is.na(ProsperScore))
+ld.provisory <- subset(ld.provisory, 
+                       !is.na(HouseOwned))
+ld.provisory <- subset(ld.provisory, !is.na(AlternativeListingCategory))
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |  
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+## StatedMonthlyIncome vs. InquiriesLast6Months vs. HouseOwned 
+ggplot(aes(EmploymentStatusDuration, InquiriesLast6Months), 
+            data = ld.provisory) +
+  geom_jitter(aes(color =factor( HouseOwned,
+                                 labels=c("no","yes"))), alpha = 0.8) +
+  xlim(0, 360) +
+  ylim(0, 10) +  
+  scale_color_gradient(low = "blue", high = 'violet') +
+  ggtitle("Inquiries colored by home ownership")  +
+  scale_colour_manual(values=rainbow(3, start = 0.1, 
+                                     end = 0.9), name = "HomeOwner")
+
+```
+
+    
+***
+   
+      
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, HomeOwInquiries_Home_Risk2v}
+
+ld.provisory$Ownership <- factor(ld.provisory$HouseOwned)
+ld.provisory$Ownership <- ordered(ld.provisory$Ownership, 
+                                   levels = c(1,0))
+
+levels(ld.provisory$Ownership) <- c("Home owner", "Not") 
+
+ld.provisory <- subset(ld.provisory, !is.na(ProsperScore))
+ld.provisory <- subset(ld.provisory, ProsperScore < 11)
+## InquiriesLast6Months in function of EmploymentStatusDuration (months), 
+# faceted by HouseOwned and colored by ProsperScore
+ggplot(aes(EmploymentStatusDuration, InquiriesLast6Months), 
+       data = ld.provisory) +
+  geom_jitter(aes(color = factor(ProsperScore))) +
+  xlim(0, 396) +
+  ylim(0, 10)  +
+  scale_colour_manual(values=rainbow(12, start = 0, end = 0.9), 
+                      name = "ProsperScore")+
+  facet_wrap(~Ownership, ncol =2, scales="free") +
+  ggtitle("Inquiries faceted by home ownership")  # Up to 33yr
+
+#cor.test(ld.provisory$EmploymentStatusDuration, 
+#         ld.provisory$InquiriesLast6Months) # -0.001608644 
+
+```
+   
+   
+**Main observations.** No correlation was observed between the last 6 months inquries and the employment status duration (r = -0.0016). The scatter plot of last 6 months inquries in function of employment status duration revealed that people with longer employment duration were funded after less attempts, compared to people with short durations. Coloring the graph by home ownership revealed that people who were funded at first or few attempts also tended to be home owners. Faceting the graph by house ownership (1 owner, 0 not owner) and coloring by Prosper risk score  confirmed these observations and pointed good prosper score (close to 10) as another common feature among people who were funded. The Proper score is a custom risk score built using historical Prosper data. The score ranges from 1-10, with 10 being the best, or lowest risk score.  
+   
+**Emerging research question.** Any correlation between the monthly income and the chances to be funded?   
+   
+*** 
+    
+### **3.2. Monthly income**   
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Income_Inquiries_Home_Risk1}
+
+# rm(p1, p2)
+
+ld.provisory <- subset(ld.provisory, 
+                       !is.na(StatedMonthlyIncome))
+
+## StatedMonthlyIncome vs.InquiriesLast6Months vs. HouseOwned 
+ggplot(aes(StatedMonthlyIncome, InquiriesLast6Months), 
+            data = ld.provisory) +
+  geom_jitter(aes(color = factor(HouseOwned, 
+                                 labels=c("no","yes"))), alpha = 0.8) +
+  xlim(0, 25000) +
+  ylim(0, 10) +
+  scale_colour_manual(values = rainbow(3, start = 0.1, end = 0.9), 
+                      name = "Owner") +
+  ggtitle("Inquiries colored by home ownership") +
+  xlab("Stated monthly income (USD)") 
+
+```
+
+***
+  
+```{r echo=FALSE, message=FALSE, warning=FALSE, Income_Inquiries_Home_Risk2}
+
+ld.provisory <- subset(ld.provisory, 
+                       !is.na(StatedMonthlyIncome))
+ld.provisory$Ownership <- factor(ld.provisory$HouseOwned)
+ld.provisory$Ownership <- ordered(ld.provisory$Ownership, 
+                                   levels = c(1,0))
+levels(ld.provisory$Ownership) <- c("Home owner", "Not") 
+
+## InquiriesLast6Months in function of StatedMonthlyIncome, 
+# faceted by HouseOwned and colored by ProsperScore
+ggplot(aes(StatedMonthlyIncome, InquiriesLast6Months), 
+            data = subset(ld.provisory, !is.na(ProsperScore)))+
+  geom_jitter(aes(color = factor(ProsperScore)), alpha = 0.7) +
+  xlim(0, 19000) +
+  ylim(0, 10) +
+  scale_colour_manual(values=rainbow(12, start = 0, end = 0.9), 
+                      name = "ProsperScore")+
+  facet_wrap(~Ownership, ncol =12, scales="free") +
+  ggtitle("Inquiries faceted by home ownership") +
+  xlab("Stated monthly income (USD)") 
+ 
+ 
+#cor.test(ld.provisory$StatedMonthlyIncome, 
+#         ld.provisory$InquiriesLast6Months) # 0.09017479 
+
+```
+  
+***
+   
+**Main observations.** No correlation was observed between the last 6 months inquries and the monthly income (r = 0.09). The scatter plot of last 6 months inquries in function of the monthly income revealed that people with higher monthly income (above USD 15,000) were funded at first or after less attempts, compared to people with lower income (in particular those with less than USD 5,000). Coloring the graph by home ownership confirmed the observation that most of the people who were funded at first or few attempts were home owners. Faceting the graph by house ownership (1 owner, 0 not owner) and coloring by Prosper risk score revealed that bad prosper score and income lower than USD 5,000 were associated with higher inquiries in a short time (6 months), i.e., probably due to rejections of previous attempts, with or without home ownership. 
+   
+**Emerging research question.** What about the loan amount?   
+   
+***
+     
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employment_In_Home_Risk1a}
+
+ld.provisory <- subset(ld.provisory, !is.na(StatedMonthlyIncome))
+ld.provisory <- subset(ld.provisory, !is.na(ProsperScore))
+ld.provisory <- subset(ld.provisory, !is.na(HouseOwned))
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |  
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+## StatedMonthlyIncome vs. StatedMonthlyIncome vs. HouseOwned 
+ggplot(aes(StatedMonthlyIncome, LoanOriginalAmount), 
+            data = subset(ld.provisory, !is.na(HouseOwned))) +
+  geom_jitter(aes(color = factor(HouseOwned, 
+                                 labels=c("no","yes"))), alpha = 0.8) +
+  xlim(quantile(ld.provisory$StatedMonthlyIncome, 0.1), 20000) +
+  ylim(quantile(ld.provisory$LoanOriginalAmount, 0.1), 20000) +
+  scale_color_gradient(low = "blue", high = 'violet') + 
+    coord_trans(x = "sqrt", y = "sqrt") +
+  ggtitle("Loan amount colored by home ownership") +
+  xlab("Stated monthly income (USD)") +
+  ylab("Loan original amount (USD)") +
+  scale_colour_manual(values = rainbow(3, start = 0.1, end = 0.9), 
+                      name = "Owner") 
+
+```
+
+***
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employment_In_Home_Riskok}
+
+ld.provisory$Ownership <- factor(ld.provisory$HouseOwned)
+ld.provisory$Ownership <- ordered(ld.provisory$Ownership, 
+                                   levels = c(1,0))
+levels(ld.provisory$Ownership) <- c("Home owner", "Not") 
+
+## StatedMonthlyIncome in function of LoanOriginalAmount (months), faceted by HouseOwned and colored by ProsperScore
+ggplot(aes(StatedMonthlyIncome, LoanOriginalAmount), 
+       data = subset(ld.provisory, !is.na(HouseOwned))) +
+  geom_jitter(aes(color = factor(ProsperScore)), alpha = 0.7) +
+  scale_colour_manual(values=rainbow(12, start = 0, end = 0.9), 
+                      name = "ProsperScore") +
+  facet_wrap(~Ownership, ncol =2, scales="free") +
+  xlim(quantile(ld.provisory$LoanOriginalAmount, 0.1), 18000) +
+  ylim(quantile(ld.provisory$StatedMonthlyIncome, 0.1), 15000) +
+  ggtitle("Loan amount faceted by home ownership") +
+  xlab("Stated monthly income (USD)") +
+  ylab("Loan original amount (USD)")
+
+# cor.test(ld.provisory$LoanOriginalAmount, 
+#                ld.provisory$StatedMonthlyIncome) # 0.3200879 
+
+```
+   
+**Main observations.** A poor positive correlation was observed between the loan amount and the monthly income (r = 0.32). As expected, in the scatter plot of these variables the loan amount increased roughly with the monthly income. Coloring the graph by home ownership revealed that most people with a monthly income of USD 5,000 or less were funded only for up to USD 15,000. Conversely, larger amounts were mainly provided to people with incomes higher than USD 5,000. Faceting the graph by house ownership (1 owner, 0 not owner) and coloring by Prosper risk score revealed that most borrowers were home owners and some people with high incomes had a poor Prosper Score (higher risk). Overall, house ownership did not affected the tendency to provide higher amounts mainly to people with higher incomes.    
+    
+***
+   
+  
+# Univariate Plots Section 2
+     
+## 4. Loan amount, risk and gain
+   
+### **4.1. Delinquency**   
+Delinquency was evaluated as the number of days delinquent (passed due payment).   
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, prosper_Score1}
+
+## ProsperScore 
+## provisory working dataframe with ordered values
+ld.provisory <- subset(ld, !is.na(ProsperScore)) 
+ld.provisory <- arrange(ld.provisory, ProsperScore)
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+## plotting data
+ggplot(aes(ProsperScore), data = ld.provisory) +
+  geom_bar(colour = "white", fill="blue")
+
+## Descriptive statistics
+# summary(ld.provisory$ProsperScore)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   1.00    4.00    6.00    5.95    8.00   11.00 
+
+```
+   
+***
+     
+```{r echo=FALSE, message=FALSE, warning=FALSE, prosper_Score2}
+## Delinquency 
+## provisory working dataframe with ordered values & non-null delinquent days
+ld.provisory2 <- subset(ld, !is.na(LoanCurrentDaysDelinquent))
+ld.provisory2 <- subset(ld.provisory2, 
+                        AlternativeListingCategory == 2 | 
+                          AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+ld.provisory2 <- arrange(ld.provisory2, LoanCurrentDaysDelinquent)
+
+## plotting data
+p1 = ggplot(aes(LoanCurrentDaysDelinquent), data = ld.provisory2) +
+  geom_histogram(binwidth = 65, colour = "white", fill="blue") +
+  xlab("Days delinquent")  +
+  xlim(10, 2190) +
+  ylim(0, 280) # 6 years
+
+p2 = ggplot(
+  aes(x = c(1:length(ld.provisory2$LoanCurrentDaysDelinquent)), 
+                y = LoanCurrentDaysDelinquent),
+            data = ld.provisory2) +
+  geom_point() +
+  xlim(15000, 20040) +
+  xlab("Increasing order") 
+
+grid.arrange(p1, p2, ncol = 2)
+
+# Returning delinquent customers' proportion
+#1 - sum(ld.provisory2$LoanCurrentDaysDelinquent == 0) /
+#      length(ld.provisory2$LoanCurrentDaysDelinquent)
+
+```
+    
+    
+**Risk score.**  The histogram revealed a normal-like distribution, where most borrowers had a risk score between 4 and 8 (median = 6).  
+   
+**Delinquency.** Only 15.79 of the borrowers were reported delinquent, as illustrated by the splitted line graphs, which present ordered delinquency days. Delinquent's histogram revealed a bimodal distribution, with positively skewed distribution that was roughly about 2-two higher than the mode of the other distribution (negatively skewed). The binwidth of the histogram is 60 days.  
+    
+**Emerging research question.** What could be the impact of delinquency? 
+   
+*** 
+   
+# Multivariate Plots Section 2 
+   
+### **4.2. Score change and loan status**  
+    
+#### **4.2.1. Loan status**  
+
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employmnt_Incom1}
+
+ld.provisory <- subset(ld, !is.na(InquiriesLast6Months))
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+ld.provisory <- subset(ld.provisory, !is.na(LoanStatus)) 
+
+# levels(ld.provisory$LoanStatus)
+# ordered LoanStatus
+ld.provisory$LoanStatus <- ordered(ld.provisory$LoanStatus, 
+                                   levels = c("Cancelled","Completed", 
+                                      "FinalPaymentInProgress", "Current",
+                                      "Past Due (1-15 days)", 
+                                      "Past Due (16-30 days)",
+                                      "Past Due (31-60 days)", 
+                                      "Past Due (61-90 days)",
+                                      "Past Due (91-120 days)", 
+                                      "Past Due (>120 days)",
+                                      "Defaulted", "Chargedoff"))
+
+levels(ld.provisory$LoanStatus) <- c("Cancelled", "Completed","Finalizing",
+                                     "Current", "Due <15days", "Due 16-30d", 
+                                     "Due 31-60d", "Due 61-90d", 
+                                     "Due 91-120d", "Due >120d", "Defaulted",
+                                     "ChargedOff")
+
+
+## bar graph: InquiriesLast6Months faceted according to LoanStatus
+ggplot(aes(InquiriesLast6Months), data = ld.provisory) +
+  geom_bar(aes(fill = LoanStatus)) +
+  xlim(2, 10) +
+  ylim(0, 1600)
+
+```
+   
+***
+   
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employmnt_Incom1b}
+
+## bar graph: InquiriesLast6Months faceted according to LoanStatus
+ggplot(aes(InquiriesLast6Months), data = ld.provisory) +
+  geom_bar(colour = "white", fill="red") +
+  facet_wrap(~LoanStatus, ncol =4, scales="free_y") +
+  xlim(quantile(ld.provisory$InquiriesLast6Months, 0.01),
+       quantile(ld.provisory$InquiriesLast6Months, 0.99))
+
+```
+   
+**Main observations.** The majority of people (beyond 98%) of people either completed their loans or were regular in payments (current). Delinquency (money due in the graph) was rare. 
+   
+**Emerging research question.** What could be the impact of delinquency? Do yielders still have a positive return on investment?   
+   
+*** 
+   
+# Univariate Plots Section 3
+
+   
+#### **4.2.2. Score change at time of listing and lender yield**   
+The borrower's credit score change at the time the credit profile was pulled is the change relative to the borrower's last Prosper loan. This value was null if the borrower had no prior loans. Instead, the lender yield on the loan is the interest rate on the loan less the servicing fee.   
+     
+```{r echo=FALSE, message=FALSE, warning=FALSE, Score_xChange1}
+#### ScorexChangeAtTimeOfListing ####
+
+## Checking data available for missing values
+# sum(is.na(ld$ScorexChangeAtTimeOfListing)) # 95009 null values
+# sum(is.na(ld$ScorexChangeAtTimeOfListing)) / length(ld$ProsperScore) # 83.38%
+
+## provisory working dataframe with ordered values
+
+#ld.provisory <- arrange(ld.provisory, ScorexChangeAtTimeOfListing) 
+ld.provisory <- subset(ld, !is.na(Term)) 
+ld.provisory <- arrange(ld.provisory, Term) 
+ld.provisory <- subset(ld.provisory,
+                       !is.na(ScorexChangeAtTimeOfListing))
+ld.provisory <- subset(ld.provisory, AlternativeListingCategory == 2 |
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+
+## plotting data
+p1 = ggplot(aes(ScorexChangeAtTimeOfListing), data = ld.provisory) +
+  geom_histogram(colour = "yellow", fill="blue") +
+  xlim(quantile(ld.provisory$ScorexChangeAtTimeOfListing, 0.01), 
+       quantile(ld.provisory$ScorexChangeAtTimeOfListing, 0.99)) +
+  xlab("Score change at listing")
+
+#### LenderYield #####
+## Checking data available for missing values
+# sum(is.na(ld$LenderYield)) # No null values
+# sum(is.na(ld$LenderYield) / length(ld$LenderYield) # 0%
+
+## provisory working dataframe with ordered values
+ld.provisory2 <- subset(ld, !is.na(LenderYield)) 
+ld.provisory2 <- arrange(ld.provisory2, LenderYield)
+ld.provisory2 <- subset(ld.provisory2, 
+                        AlternativeListingCategory == 2 |         
+                          AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+## plotting data
+p2 = ggplot(aes(LenderYield), data = ld.provisory2) +
+  geom_histogram(binwidth = 0.012, colour = "yellow", fill="blue") 
+
+
+grid.arrange(p1, p2, ncol = 2)
+
+```
+    
+**Score change at time of listing.**  The histogram revealed an almost zero-centered (median = -3, q25 = -35, q75 = 25) normal distribution. The line graph revealed an inflection point at zero (as 6% of people received no change). More people had a negative score exchange (51.92%), while 42.12% a positive exchange.   
+    
+**Lender yield.** The histogram revealed a normal-like distribution (median = 0.173, q25 = 0.124, q75 = 0.24).   
+   
+***
+     
+```{r echo=FALSE, message=FALSE, warning=FALSE, Score_xChange2}
+#### Term ####
+p3 = ggplot(aes(x = c(1:length(ld.provisory$MemberKey)), 
+                y = Term), data = ld.provisory) +
+  geom_line(colour = "green") +
+  ylim(0, quantile(ld.provisory$Term, 0.99)) +
+  xlab("Increasing order") +
+  ylab("Term (months)")   
+
+##### LoanOriginalAmount ##### 
+ld.provisory3 <- subset(ld, !is.na(Term)) 
+ld.provisory3 <- arrange(ld.provisory3, LoanOriginalAmount) 
+
+p4 = ggplot(aes(x = c(1:length(ld.provisory3$MemberKey)), 
+                y = LoanOriginalAmount), data = ld.provisory3) +
+  geom_line(colour = "green") +
+  ylim(0, quantile(ld.provisory3$LoanOriginalAmount, 0.99)) +
+  xlab("Increasing order") +
+  ylab("Loan original amount (USD)")   
+
+grid.arrange(p3, p4, ncol = 2)
+
+
+##### PercentFunded ####
+## Proportions 
+# sum(ld.provisory$PercentFunded == 1) /
+#   length(ld.provisory$MemberKey) # 0.9923642
+
+#### ScorexChangeAtTimeOfListing ####
+## Parameters 
+# summary(ld.provisory$ScorexChangeAtTimeOfListing) # -3
+#    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+# -209.000  -35.000   -3.000   -3.223   25.000  286.000 
+    
+## Proportions 
+#sum(ld.provisory$ScorexChangeAtTimeOfListing < 0) / 
+#  length(ld.provisory$MemberKey) # 0.5192308
+#sum(ld.provisory$ScorexChangeAtTimeOfListing == 0) / 
+#  length(ld.provisory$MemberKey) # 0.05954142
+#sum(ld.provisory$ScorexChangeAtTimeOfListing > 0) / 
+#  length(ld.provisory$MemberKey) # 0.4212278
+
+#### LenderYield #####
+## Parameters 
+# summary(ld.provisory2$LenderYield) 
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# -0.0100  0.1242  0.1730  0.1827  0.2400  0.4925 
+
+#### Term ####
+## Proportions 
+# 36 month term 
+# sum(ld.provisory$Term == 36)/length(ld.provisory$MemberKey) # 0.7704082
+# 60 month term
+# sum(ld.provisory$Term == 60)/length(ld.provisory$MemberKey) # 0.2154261
+
+##### LoanOriginalAmount ##### 
+## Proportions  
+# sum(ld.provisory2$LoanOriginalAmount <= 5000)/length(ld.provisory2$MemberKey) 
+# sum(ld.provisory2$LoanOriginalAmount > 5000 & 
+#       ld.provisory2$LoanOriginalAmount <= 10000)/length(ld.provisory2$MemberKey) 
+# sum(ld.provisory2$LoanOriginalAmount > 10000 & 
+#      ld.provisory2$LoanOriginalAmount <= 15000)/length(ld.provisory2$MemberKey) 
+# sum(ld.provisory2$LoanOriginalAmount > 15000)/length(ld.provisory2$MemberKey) 
+```
+
+   
+**Loan amount.**  As illustrated in the line graph of increasing values (longer steps), 45.48% of borrowers asked for USD 5,000; 27.33% between USD 5,000 and 10,000; 17.58% between USD 10,000 and 15,000; and 9.61% more than USD 15,000.  Picks in borrower frequency were observed around: USD 4,000; 5,000; 10,000; and 15,000.   
+  
+**Emerging research question.** Any link between the stated monthly income, and the loan amount and term?   
+   
+***
+   
+# Multivariate Plots Section 3
+
+   
+#### **4.2.3. Score change at time of listing and lender yield**   
+The borrower's credit score change at the time the credit profile was pulled is the change relative to the borrower's last Prosper loan. This value will be null if the borrower had no prior loans. Instead, the lender yield on the loan is the interest rate on the loan less the servicing fee. 
+  
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employment_Inquiries_Verif_Home_Risk1}
+
+ld.provisory <- subset(ld, !is.na(StatedMonthlyIncome))
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+ld.provisory <- subset(ld.provisory, !is.na(ProsperScore))
+ld.provisory <- subset(ld.provisory, ProsperScore < 11)
+ld.provisory <- subset(ld.provisory, !is.na(Term))
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+ld.provisory <- subset(ld.provisory, 
+                       Term == 12 | Term == 36 | Term == 60)
+
+ld.provisory$IncomeVerifiable <- ordered(ld.provisory$IncomeVerifiable, 
+                                   levels = c("True", "False"))  
+levels(ld.provisory$IncomeVerifiable) <- c("Verifiable", "Not")
+
+## StatedMonthlyIncome vs. StatedMonthlyIncome vs. Term 
+ggplot(aes(y = LoanOriginalAmount, x = StatedMonthlyIncome), 
+            data = ld.provisory) +
+  geom_jitter(aes(color = factor(Term, 
+                                 labels=c("12","36", "60"))), 
+              alpha = 0.7) + ylim(0, 19000) +
+  xlim(0, 15000)  +
+  scale_colour_manual(values=rainbow(4, start = 0, end = 0.95), 
+                      name = "Term") +
+  ggtitle("Loan amount colored by term (months)") +
+  xlab("Stated monthly income (USD)") +
+  ylab("Loan original amount (USD)") 
+
+```
+
+***  
+
+```{r echo=FALSE, fig.height=6, fig.width=11, message=FALSE, warning=FALSE}
+
+## StatedMonthlyIncome in function of LoanOriginalAmount (months), faceted by Term and colored by ProsperScore
+ggplot(aes(y = LoanOriginalAmount, x = StatedMonthlyIncome), 
+       data = ld.provisory) +
+  geom_jitter(aes(color = factor(ProsperScore)), alpha = 0.7) + 
+  scale_colour_manual(values = rainbow(12, start = 0, end = 0.9)) +
+  ylim(0, 19000) +
+  xlim(0, 15000) + 
+  scale_colour_manual(values=rainbow(12, start = 0, end = 0.9), 
+                      name = "ProsperScore") +
+  facet_wrap(~Term, ncol =3, scales="free")  +
+  ggtitle("Loan amount faceted by term (months)") +
+  xlab("Stated monthly income (USD)") +
+  ylab("Loan original amount (USD)") 
+
+```
+     
+**Term and percent funded.**  Most loans had a term (length of the loan) of 36 months (77.04%), while for 21.54% of borrowers the loan term was 60 months. The listing was fully funded for almost all borrowers (99.24%).   
+   
+**Stated income, loan amount and term.**  Coloring the scatter plot of stated income vs. loan original amount (which was also the final loan amount given that almost all loans were funded at 100%) revealed that the term increased with both the loan amount and the monthly income. Faceting the graph  by term and coloring by prosper score confirmed that people with higher risk (low Prosper score) were funded only for loans under USD 10,000, despite their monthly income. People with the highest incomes also had the best Proper scores and almost all were granted loans beyond USD 15,000, for a term of 36 or 60 days.         
+   
+**Emerging research question.** Was the monthly income stated always verifiable (or verified)?
+   
+***
+   
+#### **4.2.4. Income verification and Prosper score**   
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employment_InquVerif_Home_Rsk1}
+######### 
+ld.provisory <- subset(ld.provisory, !is.na(IncomeVerifiable))
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+ld.provisory <- subset(ld.provisory, !is.na(IncomeVerifiableInt))
+ld.provisory <- subset(ld.provisory, !is.na(StatedMonthlyIncome))
+
+## StatedMonthlyIncome vs. IncomeVerifiableInt 
+ggplot(aes(y = LoanOriginalAmount, x = StatedMonthlyIncome), 
+            data = ld.provisory) +
+  geom_jitter(aes(color = factor(IncomeVerifiableInt,
+                                 labels = c("no","yes"))), alpha = 0.7) +
+  xlim(0, 15000) +  ylim(0, 19000) +
+  scale_colour_manual(values=rainbow(3), name = "Verifiable") +
+  ggtitle("Loan amount colored by income verifiability") +
+  xlab("Stated monthly income (USD)") +
+  ylab("Loan original amount (USD)") 
+
+```
+
+***
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Employment_Inquiries_Verif_Home_Rsk1a}
+
+## StatedMonthlyIncome in function of LoanOriginalAmount (months), faceted by IncomeVerifiableInt and colored by ProsperScore
+ggplot(aes(y = LoanOriginalAmount, x = StatedMonthlyIncome), 
+       data = ld.provisory) +
+  geom_jitter(aes(color = factor(ProsperScore)), alpha = 0.7) +
+  xlim(0, 15000) +
+  ylim(0, 19000) +
+  scale_colour_manual(values=rainbow(12), name = "ProsperScore") +
+  facet_wrap(~IncomeVerifiable, ncol =2, scales="free") + 
+  ggtitle("Loan amount faceted by income verifiability") +
+  xlab("Stated monthly income (USD)") +
+  ylab("Loan original amount (USD)") 
+
+```
+   
+**Main observations.** The income was verifiable in most cases. Not verifiable income amouts were associated with low Prosper score (higher risk). Relatively high loan amounts (more than USD 15,000) were not common in this category.   
+   
+**Emerging research question.** Were these measures (granting high amount and long term loans only to people with high Prosper score, monthly income and its verification...) efficient enough to preserve  yielders' return in investment and reduce (and or prevent) delinquency?   
+
+***
+     
+### **4.3. Delinquency and lender yield**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Gain_Rsk1}
+
+ld.provisory <- subset(ld, !is.na(LenderYield))
+ld.provisory <- subset(ld.provisory, !is.na(StatedMonthlyIncome))
+ld.provisory <- subset(ld.provisory, !is.na(ProsperScore))
+ld.provisory <- subset(ld.provisory, ProsperScore < 11)
+ld.provisory <- subset(ld.provisory, !is.na(HouseOwned))
+ld.provisory <- subset(ld.provisory, !is.na(DelinquencyDays))
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |  
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+## ProsperScore vs. LenderYield vs. HouseOwned 
+ggplot(aes(ProsperScore, LenderYield), data = ld.provisory) +
+  geom_jitter(aes(color = factor(DelinquencyDays, 
+                                 labels=c("no","yes"))), alpha = 0.9) +
+  xlim(0, quantile(ld.provisory$ProsperScore, 0.999)) +
+  ylim(0.05, quantile(ld.provisory$LenderYield, 0.95)) +
+  xlab("Prosper score") +
+  ylab("Lender yield") +
+  scale_colour_manual(values= rainbow(2, start = 0.1, end = 0.9) , 
+                      name = "Delinquent")
+
+```
+
+***
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Gain_Rsk2}
+
+## ProsperScore vs. LoanOriginalAmount vs. HouseOwned 
+ggplot(aes(ProsperScore, LoanOriginalAmount), 
+            data = ld.provisory) +
+  geom_jitter(aes(color = factor(DelinquencyDays, labels=c("no","yes"))), 
+              alpha = 0.9) +
+  xlim(0, quantile(ld.provisory$ProsperScore, 0.95)) +
+  ylim(0, 19000) +
+  xlab("Prosper score") +
+  ylab("Loan original amount (USD)") +
+  scale_colour_manual(values=rainbow(2, start = 0.1, end = 0.9), 
+                      name = "Delinquent")
+
+```
+
+***
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Gain_Rsk3}
+
+## LenderYield vs. LoanOriginalAmount vs. HouseOwned 
+ggplot(aes(LoanOriginalAmount, LenderYield), 
+            data = ld.provisory) +
+  geom_jitter(aes(color = factor(DelinquencyDays, 
+                                 labels=c("no","yes"))), alpha = 0.9) +
+  ylim(0.05, quantile(ld.provisory$LenderYield, 0.95)) +
+  xlim(0, 19000)+
+  xlab("Loan original amount (USD)") +
+  ylab("Lender yield") +
+  scale_colour_manual(values=rainbow(2, start = 0.1, end = 0.9), 
+                      name = "Delinquent")  
+
+```
+
+
+**Lender yield vs. Prosper score.** Yielders gain ranged from 0.05 to about 0.35. The gain increased with the risk (low Prosper score), despite the presence of most delinquent in the high risk category.   
+   
+**Loan amounts vs. Prosper score, .** As observed before, in most cases higher Prosper score (less risk) was associated with loan funding. Delinquent were distributed regularly in all loan amounts.   
+   
+**Lender yield vs. loan amount.** Yielders gained the most on loan lower than USD 10,000. However, delinquents were also common in that loan amount category.   
+    
+***
+   
+
+------
+
+# Final Plots and Summary
+
+After listing and exploring variables names, only the variables juged of interest for the study were extracted from the dataframe of 81 variables obtained from Proper CSV file (to improve memory use and analysis speed). Data were explored in terms of type (integer, boolean...) and quality (sufficient 'non missing' data). Where necessary, new variables obtained from transformation of pre-existing ones were created (using functions and iterations). Then data were proceeded for univariate, bivariate and multivariate plottings. Histograms, scatter plots, bar graphs, and line graphs were used, faceted and colored by categorical variables like home ownership, evidence of stated income, loan term, and Prosper score. Various methods were used to improve the quality of graphs and the detection of the information contained in the data, including: decreasing overoplotting (using alpha factor, jitters...); tranforming axes using the *sqrt* function in a loss less fashion (using *coord_cartesian* function); removing extreme values (e.g. by plotting data between quantiles 0.1-0.5 and 0.95-0.99); creating new categorical variables from continuous variables or categorical variables with either more general information (e.g. extraction of the delinquency status from the more general categorical variable "LoanStatus") or with numerous non-organized values (such as the categorical variable "ListingCategory" that had more than 20 possible values). As appropriate, proportions and means were determined for more accurate description of the data.   
+
+### Plot One
+```{r echo=FALSE, fig.height=8, fig.width=7, message=FALSE, warning=FALSE}
+## Required to get:
+# No NA in StatedMonthlyIncome and LoanOriginalAmount
+ld.provisory <- subset(ld, 
+                       !is.na(StatedMonthlyIncome))
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+
+
+# Mean of monthly income of people filling for personal reasons 
+# (non for business) 
+ld.provisory <- subset(ld.provisory, AlternativeListingCategory == 2 |                
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+##1. Once to 3 times in the 6 months
+# (funded directly of after a few improvement on their profiles)
+# (or actually more than once for different listing categories)
+ld.provisory3 <- subset(ld.provisory, 
+                        !is.na(InquiriesLast6Months))
+
+## Detected typo: Prosper score  11 (1-10 only!)
+ld.provisory3 <- subset(ld.provisory3, 
+                        ProsperScore == 1 | ProsperScore == 3 | 
+                          ProsperScore == 7 | ProsperScore == 10)
+
+ld.provisory3$ProsperScore <- as.factor(ld.provisory3$ProsperScore) 
+# ordered IncomeRange
+ld.provisory3$IncomeRange <- ordered(ld.provisory3$IncomeRange, 
+                                     levels = c("$0", "$1-24,999", 
+                                                "$25,000-49,999",
+                                                "$50,000-74,999", 
+                                                "$75,000-99,999", 
+                                                "$100,000+"))
+
+p1 = ggplot(aes(x= ProsperScore, y = InquiriesLast6Months),
+       data = subset(ld.provisory3, !is.na(IncomeRange))) +
+  geom_boxplot(aes(fill = IncomeRange)) +
+  ylim(0, 9) + theme(legend.position = "right") +
+  ggtitle("Loan amount per Prosper score and income")
+
+p2 = ggplot(aes(x= ProsperScore, y = LoanOriginalAmount),
+       data = subset(ld.provisory3, !is.na(IncomeRange))) +
+  geom_boxplot(aes(fill = IncomeRange)) + 
+  theme(legend.position = "right") + 
+  scale_y_continuous(trans = "log10") +
+  ylab("Loan original amount (USD)") +
+  ylim(1600, 11000) 
+# + guides(fill=FALSE) 
+
+grid.arrange(p1, p2, ncol = 1)
+
+```
+
+### Description One
+The boxplot of inquiries in the last 6 months in function of Prosper score and colored by income range (upper) suggested that people with high Prosper score (less risk) were more likely to be funded, including those with very high incomes (> USD 100,000). The combination of that score and of a high monthly income appeared to be associated with funding at first attempt. The boxplot of loan amount in function of Prosper score and colored by income range (lower) suggested that people with both high Prosper score and high incomes were more likely to be funded for high amounts, while people with low Prosper score will not be funded for more than about USD 5,000. These observations summarize well the previous graphs and call for quantitative analysis of the impact of the income range, loan amount and Prosper score (that appeared as the strongest determinant for a loan in our study).
+
+
+### Plot Two
+
+```{r echo=FALSE, fig.height=8, fig.width=7, message=FALSE, warning=FALSE, include=FALSE}
+ld.provisory <- subset(ld, 
+                       !is.na(StatedMonthlyIncome))
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+
+# Mean of monthly income of people filling for personal reasons 
+# (non for business) 
+ld.provisory <- subset(ld.provisory, AlternativeListingCategory == 2 |                
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+ld.provisory <- subset(ld.provisory, LoanOriginalAmount > 0) 
+ld.provisory <- subset(ld.provisory, StatedMonthlyIncome > 0) 
+
+##1. Once or up to 3 times in the 6 months 
+# Funded directly or after a few changes in the profile
+
+ld.provisory1 <- subset(ld.provisory, 
+                        !is.na(InquiriesLast6Months))
+ld.provisory1 <- subset(ld.provisory1, 
+                        InquiriesLast6Months <= 3)
+inc1 = ld.provisory1$StatedMonthlyIncome
+loan1 = ld.provisory1$LoanOriginalAmount
+
+
+###1.1. with highest Prosper scores (8-10) 
+ld.provisory1.1 <- subset(ld.provisory1, 
+                          !is.na(ProsperScore))
+ld.provisory1.1 <- subset(ld.provisory1.1, 
+                          ProsperScore == 8  |
+                            ProsperScore == 9  | 
+                            ProsperScore == 10)
+inc1.1 = ld.provisory1.1$StatedMonthlyIncome
+loan1.1 = ld.provisory1.1$LoanOriginalAmount
+
+
+####1.1.1. with work status duration >= 3 years (36 months)
+ld.provisory1.1.1 <- subset(ld.provisory1.1, 
+                            !is.na(EmploymentStatusDuration))
+ld.provisory1.1.1 <- subset(ld.provisory1.1.1, 
+                            EmploymentStatusDuration <= 36)
+inc1.1.1 = ld.provisory1.1.1$StatedMonthlyIncome
+loan1.1.1 = ld.provisory1.1.1$LoanOriginalAmount
+
+####1.1.2. between 4 and 10 years (120 months)
+ld.provisory1.1.2 <- subset(ld.provisory1.1, 
+                            EmploymentStatusDuration > 36 & 
+                         EmploymentStatusDuration <= 120)
+inc1.1.2 = ld.provisory1.1.2$StatedMonthlyIncome
+loan1.1.2 = ld.provisory1.1.2$LoanOriginalAmount
+
+####1.1.3. 11 to 33 years (240 - 396 months)
+ld.provisory1.1.3 <- subset(ld.provisory1.1, 
+                            EmploymentStatusDuration > 120 & 
+                         EmploymentStatusDuration <= 396)
+inc1.1.3 = ld.provisory1.1.3$StatedMonthlyIncome
+loan1.1.3 = ld.provisory1.1.3$LoanOriginalAmount
+
+####1.1.4. and up to 33 years (396 months)
+#ld.provisory1.1.4 <- subset(ld.provisory1.1, 
+#                       EmploymentStatusDuration > 240 & 
+#                         EmploymentStatusDuration <= 396)
+#inc1.1.4 = ld.provisory1.1.4$StatedMonthlyIncome
+
+
+##1.2. with lowest Prosper scores (1-3) 
+ld.provisory1.2 <- subset(ld.provisory1, !is.na(ProsperScore))
+ld.provisory1.2 <- subset(ld.provisory1.2, ProsperScore == 1 |
+                         ProsperScore == 2| ProsperScore == 3)
+inc1.2 = ld.provisory1.2$StatedMonthlyIncome
+loan1.2 = ld.provisory1.2$LoanOriginalAmount
+
+####1.2.1. with work status duration >= 3 years (36 months)
+ld.provisory1.2.1 <- subset(ld.provisory1.2, 
+                            !is.na(EmploymentStatusDuration))
+ld.provisory1.2.1 <- subset(ld.provisory1.2.1, 
+                            EmploymentStatusDuration <= 36)
+inc1.2.1 = ld.provisory1.2.1$StatedMonthlyIncome
+loan1.2.1 = ld.provisory1.2.1$LoanOriginalAmount
+
+####1.2.2. between 4 and 10 years (120 months)
+ld.provisory1.2.2 <- subset(ld.provisory1.2, 
+                            EmploymentStatusDuration > 36 & 
+                         EmploymentStatusDuration <= 120)
+inc1.2.2 = ld.provisory1.2.2$StatedMonthlyIncome
+loan1.2.2 = ld.provisory1.2.2$LoanOriginalAmount
+
+####1.2.3. 11 to 33 years (240 - 396 months)
+ld.provisory1.2.3 <- subset(ld.provisory1.2, 
+                            EmploymentStatusDuration > 120 & 
+                         EmploymentStatusDuration <= 396)
+inc1.2.3 = ld.provisory1.2.3$StatedMonthlyIncome
+loan1.2.3 = ld.provisory1.2.3$LoanOriginalAmount
+
+####1.2.4.  and up to 33 years (396 months)
+#ld.provisory1.2.4 <- subset(ld.provisory1.2, 
+#                      EmploymentStatusDuration > 240 & 
+#                         EmploymentStatusDuration <= 396)
+#inc1.2.4 = ld.provisory1.2.4$StatedMonthlyIncome
+
+
+
+##2. More than 3 times in the 6 months 
+# Funded after a lot of struggle
+# (up to 15 times to remove outliers)
+
+ld.provisory2 <- subset(ld.provisory, 
+                        !is.na(InquiriesLast6Months))
+ld.provisory2 <- subset(ld.provisory2, 
+                        InquiriesLast6Months > 3)
+inc2 = ld.provisory2$StatedMonthlyIncome
+loan2 = ld.provisory2$LoanOriginalAmount
+
+###2.1. with highest Prosper scores (10) 
+ld.provisory2.1 <- subset(ld.provisory2, !is.na(ProsperScore))
+ld.provisory2.1 <- subset(ld.provisory2.1, ProsperScore == 8  |
+                            ProsperScore == 9  | 
+                            ProsperScore == 10)
+inc2.1 = ld.provisory2.1$StatedMonthlyIncome
+loan2.1 = ld.provisory2.1$LoanOriginalAmount
+
+####2.1.1. with work status duration >= 3 years (36 months)
+ld.provisory2.1.1 <- subset(ld.provisory2.1, 
+                            !is.na(EmploymentStatusDuration))
+ld.provisory2.1.1 <- subset(ld.provisory2.1.1, 
+                            EmploymentStatusDuration <= 36)
+inc2.1.1 = ld.provisory2.1.1$StatedMonthlyIncome
+loan2.1.1 = ld.provisory2.1.1$LoanOriginalAmount
+
+####2.1.2. between 4 and 10 years (120 months)
+ld.provisory2.1.2 <- subset(ld.provisory2.1, 
+                            EmploymentStatusDuration > 36 & 
+                         EmploymentStatusDuration <= 120)
+inc2.1.2 = ld.provisory2.1.2$StatedMonthlyIncome
+loan2.1.2 = ld.provisory2.1.2$LoanOriginalAmount
+
+####2.1.3. 11 to 33 years (240 - 396 months)
+ld.provisory2.1.3 <- subset(ld.provisory2.1, 
+                            EmploymentStatusDuration > 120 & 
+                         EmploymentStatusDuration <= 396)
+inc2.1.3 = ld.provisory2.1.3$StatedMonthlyIncome
+loan2.1.3 = ld.provisory2.1.3$LoanOriginalAmount
+
+####2.1.4. and up to 33 years (396 months)
+#ld.provisory2.1.4 <- subset(ld.provisory2.1, 
+#                       EmploymentStatusDuration > 240 & 
+#                         EmploymentStatusDuration <= 396)
+#inc2.1.4 = ld.provisory2.1.4$StatedMonthlyIncome
+
+
+##2.2. with lowest Prosper scores (1) 
+ld.provisory2.2 <- subset(ld.provisory2, !is.na(ProsperScore))
+ld.provisory2.2 <- subset(ld.provisory2.2, ProsperScore == 1 |
+                         ProsperScore == 2 |ProsperScore == 3)
+inc2.2 = ld.provisory2.2$StatedMonthlyIncome
+loan2.2 = ld.provisory2.2$LoanOriginalAmount
+
+####2.2.1. with work status duration >= 3 years (36 months)
+ld.provisory2.2.1 <- subset(ld.provisory2.2, 
+                            !is.na(EmploymentStatusDuration))
+ld.provisory2.2.1 <- subset(ld.provisory2.2.1, 
+                            EmploymentStatusDuration <= 36)
+inc2.2.1 = ld.provisory2.2.1$StatedMonthlyIncome
+loan2.2.1 = ld.provisory2.2.1$LoanOriginalAmount
+
+####2.2.2. between 4 and 10 years (120 months)
+ld.provisory2.2.2 <- subset(ld.provisory2.2, 
+                            EmploymentStatusDuration > 36 & 
+                         EmploymentStatusDuration <= 120)
+inc2.2.2 = ld.provisory2.2.2$StatedMonthlyIncome
+loan2.2.2 = ld.provisory2.2.2$LoanOriginalAmount
+
+####2.2.3. 11 to 33 years (240 - 396 months)
+ld.provisory2.2.3 <- subset(ld.provisory2.2, 
+                            EmploymentStatusDuration > 120 & 
+                         EmploymentStatusDuration <= 396)
+inc2.2.3 = ld.provisory2.2.3$StatedMonthlyIncome
+loan2.2.3 = ld.provisory2.2.3$LoanOriginalAmount
+
+####2.2.4.  and up to 33 years (396 months)
+#ld.provisory2.2.4 <- subset(ld.provisory2.2, 
+#                        EmploymentStatusDuration > 240 & 
+#                         EmploymentStatusDuration <= 396)
+#inc2.2.4 = ld.provisory2.2.4$StatedMonthlyIncome
+
+
+# income
+meanInc1 <- c(1:9)
+meanInc1[1] <- mean(inc1)
+meanInc1[2] <- mean(inc1.1)
+meanInc1[3] <- mean(inc1.1.1)
+meanInc1[4] <- mean(inc1.1.2)
+meanInc1[5] <- mean(inc1.1.3)
+meanInc1[6] <- mean(inc1.2)
+meanInc1[7] <- mean(inc1.2.1)
+meanInc1[8] <- mean(inc1.2.2)
+meanInc1[9] <- mean(inc1.2.3)
+
+stderrorInc1 <- c(1:9)
+stderrorInc1[1] <- sd(inc1)/sqrt(length(inc1))
+stderrorInc1[2] <- sd(inc1.1)/sqrt(length(inc1.1))
+stderrorInc1[3] <- sd(inc1.1.1)/sqrt(length(inc1.1.1))
+stderrorInc1[4] <- sd(inc1.1.2)/sqrt(length(inc1.1.2))
+stderrorInc1[5] <- sd(inc1.1.3)/sqrt(length(inc1.1.3))
+stderrorInc1[6] <- sd(inc1.2)/sqrt(length(inc1.2))
+stderrorInc1[7] <- sd(inc1.2.1)/sqrt(length(inc1.2.1))
+stderrorInc1[8] <- sd(inc1.2.2)/sqrt(length(inc1.2.2))
+stderrorInc1[9] <- sd(inc1.2.3)/sqrt(length(inc1.2.3))
+
+meanInc2 <- c(1:9)
+meanInc2[1] <- mean(inc2)
+meanInc2[2] <- mean(inc2.1)
+meanInc2[3] <- mean(inc2.1.1)
+meanInc2[4] <- mean(inc2.1.2)
+meanInc2[5] <- mean(inc2.1.3)
+meanInc2[6] <- mean(inc2.2)
+meanInc2[7] <- mean(inc2.2.1)
+meanInc2[8] <- mean(inc2.2.2)
+meanInc2[9] <- mean(inc2.2.3)
+
+stderrorInc2 <- c(1:9)
+stderrorInc2[1] <- sd(inc2)/sqrt(length(inc2))
+stderrorInc2[2] <- sd(inc2.1)/sqrt(length(inc2.1))
+stderrorInc2[3] <- sd(inc2.1.1)/sqrt(length(inc2.1.1))
+stderrorInc2[4] <- sd(inc2.1.2)/sqrt(length(inc2.1.2))
+stderrorInc2[5] <- sd(inc2.1.3)/sqrt(length(inc2.1.3))
+stderrorInc2[6] <- sd(inc2.2)/sqrt(length(inc2.2))
+stderrorInc2[7] <- sd(inc2.2.1)/sqrt(length(inc2.2.1))
+stderrorInc2[8] <- sd(inc2.2.2)/sqrt(length(inc2.2.2))
+stderrorInc2[9] <- sd(inc2.2.3)/sqrt(length(inc2.2.3))
+
+
+# loan
+meanLoan1 <- c(1:9)
+meanLoan1[1] <- mean(loan1)
+meanLoan1[2] <- mean(loan1.1)
+meanLoan1[3] <- mean(loan1.1.1)
+meanLoan1[4] <- mean(loan1.1.2)
+meanLoan1[5] <- mean(loan1.1.3)
+meanLoan1[6] <- mean(loan1.2)
+meanLoan1[7] <- mean(loan1.2.1)
+meanLoan1[8] <- mean(loan1.2.2)
+meanLoan1[9] <- mean(loan1.2.3)
+
+stderrorLoan1 <- c(1:9)
+stderrorLoan1[1] <- sd(loan1)/sqrt(length(loan1))
+stderrorLoan1[2] <- sd(loan1.1)/sqrt(length(loan1.1))
+stderrorLoan1[3] <- sd(loan1.1.1)/sqrt(length(loan1.1.1))
+stderrorLoan1[4] <- sd(loan1.1.2)/sqrt(length(loan1.1.2))
+stderrorLoan1[5] <- sd(loan1.1.3)/sqrt(length(loan1.1.3))
+stderrorLoan1[6] <- sd(loan1.2)/sqrt(length(loan1.2))
+stderrorLoan1[7] <- sd(loan1.2.1)/sqrt(length(loan1.2.1))
+stderrorLoan1[8] <- sd(loan1.2.2)/sqrt(length(loan1.2.2))
+stderrorLoan1[9] <- sd(loan1.2.3)/sqrt(length(loan1.2.3))
+
+meanLoan2 <- c(1:9)
+meanLoan2[1] <- mean(loan2)
+meanLoan2[2] <- mean(loan2.1)
+meanLoan2[3] <- mean(loan2.1.1)
+meanLoan2[4] <- mean(loan2.1.2)
+meanLoan2[5] <- mean(loan2.1.3)
+meanLoan2[6] <- mean(loan2.2)
+meanLoan2[7] <- mean(loan2.2.1)
+meanLoan2[8] <- mean(loan2.2.2)
+meanLoan2[9] <- mean(loan2.2.3)
+
+stderrorLoan2 <- c(1:9)
+stderrorLoan2[1] <- sd(loan2)/sqrt(length(loan2))
+stderrorLoan2[2] <- sd(loan2.1)/sqrt(length(loan2.1))
+stderrorLoan2[3] <- sd(loan2.1.1)/sqrt(length(loan2.1.1))
+stderrorLoan2[4] <- sd(loan2.1.2)/sqrt(length(loan2.1.2))
+stderrorLoan2[5] <- sd(loan2.1.3)/sqrt(length(loan2.1.3))
+stderrorLoan2[6] <- sd(loan2.2)/sqrt(length(loan2.2))
+stderrorLoan2[7] <- sd(loan2.2.1)/sqrt(length(loan2.2.1))
+stderrorLoan2[8] <- sd(loan2.2.2)/sqrt(length(loan2.2.2))
+stderrorLoan2[9] <- sd(loan2.2.3)/sqrt(length(loan2.2.3))
+
+
+
+meanInc <- c(meanInc1[3:5], meanInc1[7:9], meanInc2[3:5], 
+             meanInc2[7:9]) 
+stderrorInc <- c(stderrorInc1[3:5], stderrorInc1[7:9], 
+                 stderrorInc2[3:5], stderrorInc2[7:9]) 
+meanLoan <- c(meanLoan1[3:5], meanLoan1[7:9], 
+              meanLoan2[3:5], meanLoan2[7:9]) 
+stderrorLoan <- c(stderrorLoan1[3:5], stderrorLoan1[7:9],
+                  stderrorLoan2[3:5], stderrorLoan2[7:9]) 
+Status <- c("3 years", "4-10 years", "11+ years",
+                "3 years", "4-10 years", "11+ years",
+            "3 years", "4-10 years", "11+ years",
+                "3 years", "4-10 years", "11+ years") 
+Prosper_score <- c("8-10", "8-10", "8-10", "1-3", 
+                   "1-3", "1-3","8-10", "8-10", 
+                   "8-10", "1-3", "1-3", "1-3")
+Inquiries <- c("1-3 inq", "1-3 inq", "1-3 inq", "1-3 inq", 
+               "1-3 inq", "1-3 inq", "3+ inq", "3+ inq", 
+               "3+ inq", "3+ inq", "3+ inq", "3+ inq")
+
+LoanAmountAndIncome <- data.frame(meanInc, 
+           stderrorInc, meanLoan, 
+           stderrorLoan, Status, Prosper_score, Inquiries)
+
+
+
+# t.test - Income
+#t.test(inc1, inc2) # p-value = 2.221e-11
+#t.test(inc1.1, inc2.1) # p-value = 2.921e-05
+#t.test(inc1.1.1, inc2.1.1) # p-value = 0.02468
+#t.test(inc1.1.2, inc2.1.2) # p-value = 0.01149
+#t.test(inc1.1.3, inc2.1.3) # p-value = 0.0231
+#t.test(inc1.2, inc2.2) # p-value = 1.857e-08
+#t.test(inc1.2.1, inc2.2.1) # p-value = 0.005915
+#t.test(inc1.2.2, inc2.2.2) # p-value = 0.0001928
+#t.test(inc1.2.3, inc2.2.3) # p-value = 0.007593
+
+# t.test - Loan amount
+#t.test(loan1, loan2) # p-value = 1.145e-07
+#t.test(loan1.1, loan2.1) # p-value = 0.000172
+#t.test(loan1.1.1, loan2.1.1) # p-value = 0.05164
+#t.test(loan1.1.2, loan2.1.2) # p-value = 0.003084
+#t.test(loan1.1.3, loan2.1.3) # p-value = 0.2178
+#t.test(loan1.2, loan2.2) # p-value = 0.5982
+#t.test(loan1.2.1, loan2.2.1) # p-value = 0.05717
+#t.test(loan1.2.2, loan2.2.2) # p-value = 0.06756  
+#t.test(loan1.2.3, loan2.2.3) # p-value = 0.6725  
+
+
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+LoanAmountAndIncome$Status <- factor(
+  LoanAmountAndIncome$Status, levels = c("3 years", 
+                                         "4-10 years", "11+ years"))
+
+p1 = ggplot(LoanAmountAndIncome, aes(x = Prosper_score, 
+                                     y = meanInc, fill = Inquiries)) +
+  geom_bar(stat = 'identity', position="dodge") + 
+  facet_wrap(~Status, ncol = 3) +
+  xlab("Prosper score interval") +
+  ylab("Average income (USD)") +
+  ggtitle("Work status duration") 
+
+
+p2 = ggplot(LoanAmountAndIncome, aes(x = Prosper_score, 
+                                     y = meanLoan, fill = Inquiries)) +
+  geom_bar(stat = 'identity', position="dodge") + 
+  facet_wrap(~Status, ncol = 3) +
+  xlab("Prosper score interval") +
+  ylab("Average loan amount (USD)") +
+  ggtitle("")
+
+grid.arrange(p1, p2, ncol = 1)
+
+```
+
+### Description Two
+The average monthly income in function of Prosper score, faceted by the work status duration and colored by the number of inquiries in the last 6 months further suggested that people with low Prosper score were not funded for more than USD 5,000. More specifically:   
+(*i*) for people with high Prosper score who had:     
+- 3 years or less work status duration: people with high Prosper score who were funded at first inquiry had an average salary of (± SEM) USD 5,901 ± 107 against USD 8,373 ±  1,045 for those who had to ask more times (t-test, p-value = 0.0247*);   
+- 4 to 10 years work status duration: USD 6,614 ±  119 against USD 8,979 ±  895 (t-test, p-value = 0.0115*);   
+- more than 11 years: USD 7,216 ± 136 against USD 10,091 ± 1,203 (t-test, p-value = 0.0231*);    
+  
+(*ii*) for people with low Prosper score who had:     
+- 3 years or less work status duration: USD 4,576 ± 125 against USD 5,507 ± 309 (t-test, p-value = 0.0059*);   
+- 4 to 10 years work status duration: USD 4,951 ±  109 against USD 6,251 ± 326 (t-test, p-value = 0.0002*);    
+- more than 11 years: USD 5,862 ± 158 against USD 6,745 ± 287 (t-test, p-value = 0.0076*).   
+  
+Surprisingly, it appears that most people not funded at first attempt had high Prosper score and a good income. Analysing the average loan income provided a possible explanation, as
+(*iii*) people with high Prosper score who had:     
+- 3 years or less work status duration asked for USD 8,318 ± 171 against USD 11,564 ± 1,457 for those who had to ask more times (t-test, p-value = 0.0516);   
+- 4 to 10 years work status duration: USD 8,235 ± 145 against USD 11,544 ± 1,061 (t-test, p-value = 0.00308*);   
+- more than 11 years: USD 8,656 ± 170 against USD 10,302 ± 1,304 (t-test, p-value = 0.2178);    
+ People with high Prosper score also had high income, but some were not funded at the first attempt as they were asking for high amounts.   
+Therefore, people with high Prosper score and high income were not funded at the first attempt probably because they were asking for high amounts.   
+   
+(*iv*) No significant difference in loan amounts was observed between people with low scores inquiring once (USD 5,162 ± 71) or many times (USD 5,251 ± 165, p-value = 0.5982), confirming the graphical observation that people with low Prosper score were not funded for more than USD 5,000 despite their Prosper score, monthly income or work status duration.
+
+
+### Plot Three
+
+```{r echo=FALSE, fig.height=9, fig.width=8, message=FALSE, warning=FALSE}
+
+ld.provisory <- subset(ld, !is.na(LenderYield))
+ld.provisory <- subset(ld.provisory, !is.na(StatedMonthlyIncome))
+ld.provisory <- subset(ld.provisory, !is.na(ProsperScore))
+ld.provisory <- subset(ld.provisory, ProsperScore < 11)
+ld.provisory <- subset(ld.provisory, !is.na(HouseOwned))
+ld.provisory <- subset(ld.provisory, !is.na(DelinquencyDays))
+ld.provisory$Delinquency <- ld.provisory$DelinquencyDays
+ld.provisory <- subset(ld.provisory, !is.na(LoanOriginalAmount))
+ld.provisory <- subset(ld.provisory, 
+                       AlternativeListingCategory == 2 |  
+                         AlternativeListingCategory == 3 | 
+                         AlternativeListingCategory == 4)
+
+## ProsperScore vs. LenderYield vs. HouseOwned 
+p1 = ggplot(aes(x = factor(ProsperScore), 
+                y = LenderYield), data = ld.provisory) +
+  geom_jitter(aes(color = factor(DelinquencyDays,labels=c("no","yes"))), 
+              alpha = 0.7) +
+  ylim(0.05, quantile(ld.provisory$LenderYield, 0.95)) +
+  xlab("Prosper score") +
+  ylab("Lender yield")  +
+  scale_colour_manual(values=rainbow(2, start = 0.15, end = 1), 
+                      name = "Delinquent") +
+  ggtitle("Lender yield and delinquency")
+
+
+## LenderYield vs. Delinquency
+b <- by(ld.provisory$DelinquencyDays, ld.provisory$ProsperScore, sum)
+delinquent_n <- c(b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10])
+a <- by(ld.provisory$LenderYield, ld.provisory$ProsperScore, median)
+loan_yield <- c(a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10])
+prosper_score <- factor(c(1:10))
+
+yield_Prosper = data.frame(prosper_score, loan_yield, delinquent_n)
+
+p2 = ggplot(aes(x = prosper_score, y = loan_yield), data = yield_Prosper) +
+  geom_bar(stat = 'identity', aes(fill = delinquent_n)) + 
+  scale_fill_gradientn(colours=rainbow(6), name = "Delinquents") +
+  xlab("Prosper score") +
+  ylab("Lender yield") #+ 
+#  guides(fill = guide_legend(nrow = 2)) #+ 
+#  theme(legend.position = "bottom") 
+
+
+grid.arrange(p1, p2, ncol = 1)
+
+
+#ld.provisory2 <- subset(ld.provisory, ProsperScore == 1)
+#scor1 <- ld.provisory2$LenderYield
+#ld.provisory3 <- subset(ld.provisory, ProsperScore == 2)
+#scor2 <- ld.provisory$LenderYield
+#ld.provisory4 <- subset(ld.provisory, ProsperScore == 3)
+#scor3 <- ld.provisory2$LenderYield
+#ld.provisory5 <- subset(ld.provisory, ProsperScore == 4)
+#scor4 <- ld.provisory$LenderYield
+#ld.provisory6 <- subset(ld.provisory, ProsperScore == 5)
+#scor5 <- ld.provisory$LenderYield
+#ld.provisory7 <- subset(ld.provisory, ProsperScore == 6)
+#scor6 <- ld.provisory2$LenderYield
+#ld.provisory8 <- subset(ld.provisory, ProsperScore == 7)
+#scor7 <- ld.provisory$LenderYield
+#ld.provisory9 <- subset(ld.provisory, ProsperScore == 8)
+#scor8 <- ld.provisory2$LenderYield
+#ld.provisory10 <- subset(ld.provisory, ProsperScore == 9)
+#scor9 <- ld.provisory$LenderYield
+#ld.provisory11 <- subset(ld.provisory, ProsperScore == 10)
+#scor10 <- ld.provisory$LenderYield
+
+# t.test(scor1, scor10) # p-value < 2.2e-16 mean 0.2905407 0.1981753 
+# sd(scor1)/sqrt(length(scor1)) # 0.002249759
+# sd(scor10)/sqrt(length(scor10)) # 0.0006066501
+
+```
+
+
+### Description Three
+Quantitative analysis invalidated our assumption that delinquent were common in the high risk category (only 8 over 509 = 1.57%). They appeared instead to be common in the central interval of Prosper score normal distribution (368 over 509 = 72.3% between Prosper scores 3 and 7). On the other hand, quantitative analysis confirmed our hypothesis from qualitative observation that Yielders gain increased with decreasing Prosper score (negative correlation). The average lender yield for Prosper score 1 was the highest (0.291) and Prosper score 10 yield was the lowest (0.198, p-value against score 1 < 2.2e-16).
+  
+------
+
+# Reflection
+Total inquiries’ and the last 6 months inquiries’ statistical populations were significantly different in all filling categories. People applying for loans many times in the last 6 months also applied many time in the previous years, probably for business purpose, I hypothesized. The last 6 months’ distribution had more new customers than returning customers, possibly indicating that at the time of data pulling Prosper was attracting new borrowers. On the other hand, the proportion of people filling for up to the 5th of the total amount (2 or 3 times in 6 months and 2 to 6 in total) was the highest in term of total inquiry, but only the second more common in the last 6 months' inquiry distribution, suggesting that the borrowers of Prosper tended to stay and keep on borrowing money. A limitation of the current dataset for our study is the non availability of the reasons why a client (on the basis of unique identifier) borrow money each time he/she comes (could be for different reasons each time. e.g. Personal, medical, business...). It could be interesting for future studies in this direction to retrieve data about the filling category of borrower all the previous times they applied for a loan an whether they got funded or not. Then, the real proportion of people funded in each category and after how money attempts could be accurately determined.    
+Nonetheless, in order to analyze loans for individual and familial motivations, we excluded people who applied for business at the time the credit profile was pulled. Although home ownership, monthly income, and the employment status duration correlated roughly with the loan funding, term and amount, Prosper risk score appeared to have a far stronger correlation. Quantitative analysis confirmed my qualitative observations. In addition, they also confirmed that delinquency was relatively scarce, but more common among people with Prosper score between 3 and 7, as  the income per Prosper score followed a normal distribution. Yielders had a positive return in investment, despite delinquency, particularly for people investing on borrowers with higher risk (low Prosper score). From these results it appears to me that Prosper succeeded in its objective of providing a more humane approach to banking than classical financial institution as customer seem to remain loyal and new customers are attracted. It is also a successful business, as yielders have a return in investment between 19% to 30%, which is far better than the typical interests produced via banks. Future studies may address how the Prosper score is determined and how to improve it for borrowers providing better yield and less delinquency (currently mainly in the low score) to have better scores, and for the category with most delinquent to have a lower score (indicating more risk).   
+    
+***
+   
+   
+### **REFERENCES**
+  
+[docs.ggplot2.org - colour_fill_alpha](http://docs.ggplot2.org/current/aes_colour_fill_alpha.html)   
+[docs.ggplot2.org - current-theme](http://docs.ggplot2.org/current/theme.html)
+[docs.ggplot2.org - facet_grid](http://docs.ggplot2.org/0.9.3.1/facet_grid.html)   
+[docs.ggplot2.org - geom_bar](http://docs.ggplot2.org/0.9.3.1/geom_bar.html)   
+[docs.ggplot2.org - scale_brewer](http://docs.ggplot2.org/current/scale_brewer.html)   
+[docs.ggplot2.org- set-theme](http://docs.ggplot2.org/0.9.2.1/theme.html)   
+[docs.ggplot2.org - themes](http://docs.ggplot2.org/dev/vignettes/themes.html)   
+[en.wikipedia.org - peer-to-peer_lending](https://en.wikipedia.org/wiki/Peer-to-peer_lending)  
+[en.wikipedia.org - revolving credit](http://en.wikipedia.org/wiki/Revolving_credit)   
+[courses.statistics.com - R2prop](courses.statistics.com/software/R/R2prop.htm)  
+[rmarkdown.rstudio.com - authoring basics](http://rmarkdown.rstudio.com/authoring_basics.html)   
+[rmarkdown.rstudio.com - rcodechunks](http://rmarkdown.rstudio.com/authoring_rcodechunks.html)   
+[stackoverflow.com - adding-x-and-y-axis-labels-in-ggplot2](http://stackoverflow.com/questions/10438752/adding-x-and-y-axis-labels-in-ggplot2)  
+[stackoverflow.com - adjust color](http://stackoverflow.com/questions/27055094/can-i-adjust-the-lower-limit-of-scale-color-brewer)  
+[stackoverflow.com - create a discrete color palette](http://stackoverflow.com/questions/13995296/ggplot-how-to-create-a-discrete-color-palette-that-fits-the-data-automatically)   
+[stackoverflow.com - how-to-plot-one-variable-in-ggplot](stackoverflow.com/questions/13837565/how-to-plot-one-variable-in-ggplot)   
+[stackoverflow.com - how-drop-data-frame-columns-by-name](http://stackoverflow.com/questions/4605206/drop-data-frame-columns-by-name)  
+[stackoverflow.com - grouped-and-stacked-barplot](http://stackoverflow.com/questions/32997632/grouped-and-stacked-barplot-using-base-r)  
+[stackoverflow.com - creating-a-data-frame-from-two-vectors](http://stackoverflow.com/questions/12787551/creating-a-data-frame-from-two-vectors-using-cbind)  
+[stackoverflow.com - ggplot2-assigning-colours-to-a-factor](http://stackoverflow.com/questions/10836389/r-ggplot2-assigning-colours-to-a-factor)   
+[stackoverflow.com - ggplot-how-to-change-facet-labels](http://stackoverflow.com/questions/3472980/ggplot-how-to-change-facet-labels)  
+[stackoverflow.com - how-do-i-manually-change-the-key-labels-in-a-legend-in-ggplot2](http://stackoverflow.com/questions/7323191/how-do-i-manually-change-the-key-labels-in-a-legend-in-ggplot2)   
+[stackoverflow.com - how-to-plot-one-variable-in-ggplot](http://stackoverflow.com/questions/13837565/how-to-plot-one-variable-in-ggplot)  
+[stackoverflow.com - how-to-assign-colors-to-categorical-variables-in-ggplot2](http://stackoverflow.com/questions/6919025/how-to-assign-colors-to-categorical-variables-in-ggplot2-that-have-stable-mappin)   
+[stackoverflow.com - how-to-sort-a-dataframe-by-columns](http://stackoverflow.com/questions/1296646/how-to-sort-a-dataframe-by-columns)    
+[stackoverflow.com - plot-two-graphs-in-same-plot-in-r](http://stackoverflow.com/questions/2564258/plot-two-graphs-in-same-plot-in-r)  
+[stackoverflow.com - remove-all-of-x-axis-labels-in-ggplot](http://stackoverflow.com/questions/35090883/remove-all-of-x-axis-labels-in-ggplot)   
+[stackoverflow.com - remove-multiple-objects](stackoverflow.com/questions/11624885/remove-multiple-objects)    
+[stackoverflow.com - simplest-way-to-do-grouped-barplot](http://stackoverflow.com/questions/17721126/simplest-way-to-do-grouped-barplot)  
+[stackoverflow.com - turning-off-some-legends](http://stackoverflow.com/questions/14604435/turning-off-some-legends-in-a-ggplot)    
+[stat.ethz.ch/R-manual](https://stat.ethz.ch/R-manual/R-devel/library/base/html/rm.html)    
+[zevross.com - beautiful-plotting-in-r-a-ggplot2-cheatsheet](http://zevross.com/blog/2014/08/04/beautiful-plotting-in-r-a-ggplot2-cheatsheet-3/)  
+[www.ats.ucla.edu - intro_function](http://www.ats.ucla.edu/stat/r/library/intro_function.htm)  
+[www.cookbook-r.com - graphs colors](http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/)  
+[www.cookbook-r.com - Plotting_distributions](http://www.cookbook-r.com/Graphs/Plotting_distributions_(ggplot2)/)   
+[www.datacamp.com - tutorial-on-loops-in-r](https://www.datacamp.com/community/tutorials/tutorial-on-loops-in-r)    
+[www.fundingcircle](http://www.fundingcircle.com%2Finvestors%2Fcurrent-estimated-return&usg=AFQjCNF-AArPr6_q8eWw7GTGafxyYS7RdA&sig2=apNeSKfUTyAKX9wsRptj9w)     
+[www.lendingmemo.com - lending-club-vs-prosper](http://www.lendingmemo.com/lending-club-vs-prosper-for-borrowers)    
+[www.myfico.com - crediteducation](http://www.myfico.com/crediteducation/whatsinyourscore.aspx)    
+[www.programiz.com - r-if-else-statement](http://www.programiz.com/r-programming/if-else-statement)    
+[www.prosper.com - landing](https://www.prosper.com/landing)     
+[www.r-bloggers.com - comparison-of-two-proportions](http://www.r-bloggers.com/comparison-of-two-proportions-parametric-z-test-and-non-parametric-chi-squared-methods/)  
+[www.r-bloggers.com - one-way-analysis-of-variance](http://www.r-bloggers.com/one-way-analysis-of-variance-anova/)   
+[r-bloggers.com - from-continuous-to-categorical](http://www.r-bloggers.com/from-continuous-to-categorical/)   
+[www.r-tutor.com - two-population-proportions](http://www.r-tutor.com/elementary-statistics/inference-about-two-populations/comparison-two-population-proportions)   
+[www.statmethods.net - graphs/bar](http://www.statmethods.net/graphs/bar.html)  
+[www.statmethods.net - ttest](http://www.statmethods.net/stats/ttest.html)   
+[www.sthda.com - be-awesome-in-ggplot2](http://www.sthda.com/english/wiki/be-awesome-in-ggplot2-a-practical-guide-to-be-highly-effective-r-software-and-data-visualization#at_pco=smlwn-1.0&at_si=57849c7766441a77&at_ab=per-2&at_pos=0&at_tot=1)  
+[www.sthda.com - ggplot2-facet-split-a-plot-into-a-matrix-of-panels](http://www.sthda.com/english/wiki/ggplot2-facet-split-a-plot-into-a-matrix-of-panels)  
+[www.sthda.com - ggplot2-colors](http://www.sthda.com/english/wiki/ggplot2-colors-how-to-change-colors-automatically-and-manually)   
+[www.theanalysisfactor.com - r-tutorial-13](http://www.theanalysisfactor.com/r-tutorial-part-13/)
+  
+*** 
+  
